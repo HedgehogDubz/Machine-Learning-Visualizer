@@ -1,0 +1,29 @@
+{
+  "dependencies": {
+    "typescript": "^5.9.3"
+  },
+  "name": "machine-learning-visualizer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "buildindex": "tsc index.ts",
+    "buildnetwork": "tsc index.ts",
+    "open": "open index.html", 
+    "dev": "npm run buildindex && npm run buildnetwork && npm run open"
+
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HedgehogDubz/Machine-Learning-Visualizer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/HedgehogDubz/Machine-Learning-Visualizer/issues"
+  },
+  "homepage": "https://github.com/HedgehogDubz/Machine-Learning-Visualizer#readme",
+  "description": ""
+}
