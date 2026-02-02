@@ -1,3 +1,5 @@
+/* App.css */
+
 * {
   margin: 0;
   padding: 0;
@@ -6,30 +8,44 @@
 
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  height: 100dvh; 
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
   padding: 20px;
 }
 
+/* Title row (auto) + canvas row (fills remaining space) */
 .container {
-  background: white;
-  border-radius: 10px;
+  width: 90vw;
+  height: calc(100dvh - 40px);
   padding: 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow: hidden;
 }
 
 h1 {
   text-align: center;
   color: #333;
-  margin-bottom: 20px;
 }
 
+/* wrapper that defines the available canvas area */
+.canvasWrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* canvas visually fills its allowed area */
 #canvas {
+  position: absolute;
+  inset: 0;          /* top:0; right:0; bottom:0; left:0 */
+  display: block;
+  width: 100%;
+  height: 100%;
   border: 2px solid #667eea;
   border-radius: 5px;
-  display: block;
   background: #f8f9fa;
 }
