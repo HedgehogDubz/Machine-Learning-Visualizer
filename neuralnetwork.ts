@@ -1,5 +1,5 @@
-import { drawCircle } from './graphics';
-import type { Point } from './graphics';
+import { drawCircle } from './graphics.js';
+import type { Point } from './graphics.js';
 export class NeuralNetwork {
     numOfLayers: number;
     inputSize: number;

@@ -5,14 +5,14 @@
   "name": "machine-learning-visualizer",
   "version": "1.0.0",
   "main": "index.js",
-  "devDependencies": {},
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "buildindex": "tsc index.ts",
-    "buildnetwork": "tsc index.ts",
-    "open": "open index.html", 
-    "dev": "npm run buildindex && npm run buildnetwork && npm run open"
-
+    "build": "tsc",
+    "serve": "http-server -p 8080 -o",
+    "dev": "npm run build && npm run serve"
   },
   "repository": {
     "type": "git",
