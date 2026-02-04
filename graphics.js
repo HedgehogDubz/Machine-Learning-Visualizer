@@ -1,4 +1,7 @@
 export function drawCircle(ctx, position, radius, opts = {}) {
+    if (radius <= 0) {
+        return;
+    }
     const { fillStyle, strokeStyle, lineWidth, fill = true, stroke = false, } = opts;
     ctx.beginPath();
     ctx.arc(position.x, position.y, radius, 0, Math.PI * 2);

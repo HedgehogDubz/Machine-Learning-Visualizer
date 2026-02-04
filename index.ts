@@ -1,4 +1,4 @@
-import { NeuralNetwork, NeuralNetworkList } from "./neuralnetwork.js";
+import { ActivationFunction, NeuralNetwork, NeuralNetworkList } from "./neuralnetwork.js";
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const ctx = canvas?.getContext('2d');
@@ -28,8 +28,12 @@ let showFormat: ShowType = 'output';
 type ShowType = 'output' | 'error' | 'test';
 
 ///////////////////////MAIN AREA//////////////////////////////////
-
-const nnl = new NeuralNetworkList(16, 2, [7, 7, 10, 7, 7], 1, 'tanh');
+let numOfNeuralNetworks = 16;
+let inputSize = 2;
+let outputSize = 1;
+let hiddenLayerSizes = [7, 10, 10, 10, 7];
+let activationFunction: ActivationFunction = 'tanh';
+let nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction);
 
 function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
@@ -40,9 +44,7 @@ function resizeCanvas() {
 
 function start() {
    
-
-    const inputs = createInputs(2, 1, -1, 0.1);
-    nnl.createTrials(inputs, test);
+    createTrials();
 }
 function update() {
     if (!isStarted){return;}
@@ -76,27 +78,31 @@ function update() {
     ctx.fillRect(0, canvas.height / 2 - padding * canvas.width, canvas.width, canvas.height / 2 + padding * canvas.width);
     if (showFormat === 'error'){
         let errorRange = 1;
-        
-        nnl.neuralNetworks[0].display2Input1OutputError(test, ctx, 0, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, errorRange, rows, columns, decimals);
-        nnl.neuralNetworks[0].display2Input1OutputError(test, ctx, canvas.width / 2 + padding * canvas.width, canvas.height / 2, canvas.width / 2, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, errorRange, rowsV, columnsV, decimalsV);
+
+        nnl.neuralNetworks[0].display2Input1OutputError(test, ctx, 0, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, errorRange, rows, columns, decimals, false, false);
+        nnl.neuralNetworks[0].display2Input1OutputError(test, ctx, canvas.width / 2 + padding * canvas.width, canvas.height / 2, canvas.width / 2, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, errorRange, rowsV, columnsV, decimalsV, true, true);
 
     }else if (showFormat === 'output'){
         let ouputMiddle = 0;
         let outputRange = 1;
-        
-        nnl.neuralNetworks[0].display2Input1Output(ctx, 0, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rows, columns, decimals);
-        nnl.neuralNetworks[0].display2Input1Output(ctx, canvas.width / 2 + padding * canvas.width, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rowsV, columnsV, decimalsV);
+
+        nnl.neuralNetworks[0].display2Input1Output(ctx, 0, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rows, columns, decimals, false, false);
+        nnl.neuralNetworks[0].display2Input1Output(ctx, canvas.width / 2 + padding * canvas.width, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rowsV, columnsV, decimalsV, true, true);
 
     } else if (showFormat === 'test'){
         let ouputMiddle = 0;
         let outputRange = 1;
 
-        nnl.neuralNetworks[0].display2Input1OutputTest(test, ctx, 0, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rows, columns, decimals);
-        nnl.neuralNetworks[0].display2Input1OutputTest(test, ctx, canvas.width / 2 + padding * canvas.width, canvas.height / 2, canvas.width / 2, canvas.height / 2, axis1low, axis2low, axis1high, axis2high,  ouputMiddle, outputRange, rowsV, columnsV, decimalsV);
+        nnl.neuralNetworks[0].display2Input1OutputTest(test, ctx, 0, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rows, columns, decimals, false, false);
+        nnl.neuralNetworks[0].display2Input1OutputTest(test, ctx, canvas.width / 2 + padding * canvas.width, canvas.height / 2, canvas.width / 2, canvas.height / 2, axis1low, axis2low, axis1high, axis2high,  ouputMiddle, outputRange, rowsV, columnsV, decimalsV, true, true);
 
     }
 
 
+}
+function createTrials(){
+    const inputs = createInputs(inputSize, 1, -1, 0.1);
+    nnl.createTrials(inputs, test);
 }
 function createInputs(numOfInputs: number, high: number, low: number, spacing: number): number[][] {
     const possibleValues: number[] = [];
@@ -147,4 +153,9 @@ function showChange(){
     showFormat = (document.getElementById('showFormat') as HTMLSelectElement).value as ShowType;
 }
 (window as any).showChange = showChange;
+function reset(){
+    nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction);
+    createTrials();
+}
+(window as any).reset = reset;
 ///////////////////////UI AREA////////////////////////////////////

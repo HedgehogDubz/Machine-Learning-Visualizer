@@ -16,6 +16,7 @@ export function drawCircle(
   radius: number,
   opts: DrawCircleOptions = {}
 ): void {
+  if (radius <= 0){return;}
   const {
     fillStyle,
     strokeStyle,
