@@ -196,6 +196,8 @@ export class NeuralNetwork {
             this.meanError = meanSum;
         }
     }
+    backPropogate(outputs) {
+    }
     getNodeValue(np) {
         return this.layers[np.layer].neurons[np.index].value;
     }
@@ -294,7 +296,7 @@ export class NeuralNetwork {
                 for (let w = 0; w < lastYs.length; w++) {
                     ctx.save();
                     ctx.strokeStyle = this.numToColorBlack(neuron.weights[w].value);
-                    ctx.lineWidth = 5;
+                    ctx.lineWidth = 2;
                     if (this.changeWeightAlpha)
                         ctx.globalAlpha = Math.abs(neuron.weights[w].value) ** this.linePower;
                     ctx.beginPath();

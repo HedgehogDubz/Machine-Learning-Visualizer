@@ -56,12 +56,21 @@
 <body>
     <h1>Neural Network Visualizer</h1>
     <div>
-        <button id="startButton" onclick="startToggle()"><p id="startToggleText">Start</p></button>
-        <select id = "showFormat" onchange="showChange()">
+        <select id = "showDataFormat" onchange="showDataChange()">
             <option value="output">Output</option>
             <option value="error">Error</option>
             <option value="test">Test</option>
         </select>
+        <select id = "showNetworkFormat" onchange="showNetworkChange()">
+            <option value="all">All</option>
+            <option value="best">Best</option>
+        </select>
+        <select id = "testFunction" onchange="testFunctionChange()">
+            <option value="wave">Wave</option>
+            <option value="radial">Radial</option>
+            <option value="xy">XY</option>
+        </select>
+        <button id="startButton" onclick="startToggle()"><p id="startToggleText">Start</p></button>
         <button id="resetButton" onclick="reset()"><p id="resetToggleText">Reset</p></button>
     </div>
     <div class="canvasWrap">
