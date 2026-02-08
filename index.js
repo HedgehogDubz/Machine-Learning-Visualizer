@@ -18,15 +18,20 @@ window.onload = function () {
 };
 let isStarted = false;
 let showDataFormat = 'output';
-let showNetworkFormat = 'all';
+let showNetworkFormat = 'best';
 let testFunction = 'wave';
+let input1 = 0;
+let input2 = 0;
+let generationsPerDrawCycle = 1;
 ///////////////////////MAIN AREA//////////////////////////////////
 let numOfNeuralNetworks = 16;
 let inputSize = 2;
 let outputSize = 1;
-let hiddenLayerSizes = [5, 7, 5];
-let activationFunction = 'tanh';
-let nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction);
+let hiddenLayerSizes = [7, 10, 20, 20, 10, 7];
+let activationFunction = 'relu';
+let outputActivationFunction = 'tanh';
+let nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
+let lastError = Infinity;
 function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width;
@@ -38,22 +43,39 @@ function start() {
 }
 function update() {
     if (isStarted) {
-        let mutation_num_of_weights = 3;
-        let mutation_weight_strength = 0.1;
-        let mutation_num_of_biases = 3;
-        let mutation_bias_strength = 0.1;
-        const bestFitness = nnl.runGeneration(mutation_num_of_weights, mutation_weight_strength, mutation_num_of_biases, mutation_bias_strength);
+        let mutation_num_of_weights = 100;
+        let mutation_weight_strength = 0.01;
+        let mutation_num_of_biases = 100;
+        let mutation_bias_strength = 0.01;
+        let bestFitness = 0;
+        for (let i = 0; i < generationsPerDrawCycle; i++) {
+            bestFitness = nnl.runGeneration(mutation_num_of_weights, mutation_weight_strength, mutation_num_of_biases, mutation_bias_strength);
+            if (bestFitness === lastError) {
+                mutation_bias_strength /= 1.001;
+                mutation_weight_strength /= 1.001;
+            }
+            else {
+                mutation_bias_strength *= 1.001;
+                mutation_weight_strength *= 1.001;
+            }
+        }
+        lastError = bestFitness;
     }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const displayErrorDigits = 5;
     const displayMeanError = true;
+    const displayHeaderHeight = 50;
+    const displayHeader = true;
     switch (showNetworkFormat) {
         case "all":
             const rowSize = 4;
-            nnl.draw(ctx, 0, 0, canvas.width, canvas.height / 2, rowSize, displayErrorDigits, displayMeanError);
+            nnl.draw(ctx, 0, 0, canvas.width, canvas.height / 2, rowSize, displayHeaderHeight, displayHeader, displayErrorDigits, displayMeanError);
             break;
         case "best":
-            nnl.neuralNetworks[0].draw(ctx, 0, 0, canvas.width, canvas.height / 2, displayErrorDigits, displayMeanError);
+            nnl.drawHeader(ctx, 0, 0, canvas.width, displayHeaderHeight);
+            let n = nnl.neuralNetworks[0].clone();
+            n.run([input1, input2]);
+            n.draw(ctx, 0, displayHeaderHeight, canvas.width, canvas.height / 2 - displayHeaderHeight, displayErrorDigits, displayMeanError);
     }
     const axis1low = 1;
     const axis1high = -1;
@@ -151,8 +173,28 @@ function testFunctionChange() {
     createTrials();
 }
 window.testFunctionChange = testFunctionChange;
+function inputChange() {
+    generationsPerDrawCycle = parseFloat(document.getElementById('generationsPerDrawCycle').value);
+    let i1 = parseFloat(document.getElementById('input1').value);
+    input1 = Number(isNaN(i1) ? 0 : i1);
+    let i2 = parseFloat(document.getElementById('input2').value);
+    input2 = Number(isNaN(i2) ? 0 : i2);
+    document.getElementById('input1Slider').value = input1.toString();
+    document.getElementById('input2Slider').value = input2.toString();
+    document.getElementById('generationsPerDrawCycleSlider').value = generationsPerDrawCycle.toString();
+}
+window.inputChange = inputChange;
+function inputSliderChange() {
+    generationsPerDrawCycle = parseFloat(document.getElementById('generationsPerDrawCycleSlider').value);
+    input1 = parseFloat(document.getElementById('input1Slider').value);
+    input2 = parseFloat(document.getElementById('input2Slider').value);
+    document.getElementById('input1').value = input1.toString();
+    document.getElementById('input2').value = input2.toString();
+    document.getElementById('generationsPerDrawCycle').value = generationsPerDrawCycle.toString();
+}
+window.inputSliderChange = inputSliderChange;
 function reset() {
-    nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction);
+    nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
     createTrials();
 }
 window.reset = reset;

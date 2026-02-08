@@ -12,10 +12,10 @@ export class NeuralNetworkList {
     trialOutputsList: number[][] = [];
     trialPower: number = 2;
 
-    constructor(numOfNeuralNetworks:number, inputSize: number, hiddenLayerSizes: number[], outputSize: number, activationFunction: ActivationFunction){
+    constructor(numOfNeuralNetworks:number, inputSize: number, hiddenLayerSizes: number[], outputSize: number, activationFunction: ActivationFunction, outputActivationFunction:ActivationFunction){
         this.numOfNeuralNetworks = numOfNeuralNetworks;
         for(let i = 0; i < numOfNeuralNetworks; i++){
-            const nn = new NeuralNetwork(inputSize, hiddenLayerSizes, outputSize, activationFunction);
+            const nn = new NeuralNetwork(inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
             this.neuralNetworks.push(nn);
         }
         this.inputSize = inputSize;
@@ -30,19 +30,63 @@ export class NeuralNetworkList {
         this.neuralNetworks.forEach(nn => nn.mutate(numOfWeights,weightStrength, numOfBiases, biasesStrength));
         return this;
     }
-    public draw(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, height: number, rowSize: number, displayErrorDigits?: number, displayMeanError?: boolean){
+    public draw(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, height: number, rowSize: number, displayHeaderHeight?:number, displayHeader?:boolean, displayErrorDigits?: number, displayMeanError?: boolean){
         let xSpace = width / rowSize;
         let ySpace = height / Math.ceil(this.neuralNetworks.length / rowSize);
         let col = 0;
         let row = 0;
+
+        //draw header
+        if (displayHeader){
+            this.drawHeader(ctx, left, top, width, displayHeaderHeight);
+        }
+
+
+        //draw networks
         this.neuralNetworks.forEach((nn: NeuralNetwork) => {
-            nn.draw(ctx, left + xSpace * col, top + ySpace * row, xSpace, ySpace, displayErrorDigits, displayMeanError);
+            nn.draw(ctx, left + xSpace * col, top + ySpace * row + (displayHeader? 20: 0), xSpace, ySpace, displayErrorDigits, displayMeanError);
             col++;
             if(col >= rowSize){
                 col = 0;
                 row++;
             }
         });
+    }
+    public drawBest(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, height: number, rowSize: number, displayHeaderHeight?:number, displayHeader?:boolean, displayErrorDigits?: number, displayMeanError?: boolean){
+        this.sort();
+        //draw header
+        if (displayHeader){
+            this.drawHeader(ctx, left, top, width, displayHeaderHeight);
+        }
+
+        this.neuralNetworks[0].draw(ctx, left, top + (displayHeader? 20: 0), width, height - (displayHeader? 20: 0), displayErrorDigits, displayMeanError);
+    }
+    public drawHeader(ctx, left, top , width, height){
+        ctx.save();
+            ctx.fillStyle = "#e0e0e0"
+            ctx.fillRect(left, top, width, height);
+            let textStr = "Generation: " + this.generation;
+            ctx.font = '12px sans-serif';
+            let measure = ctx.measureText(textStr);
+            let w = measure.width;
+            let h = measure.emHeightAscent;
+
+            if(w >= width - 10) {
+                let textStr = "Gen: " + this.generation
+                ctx.font = '12px sans-serif';
+                let measure = ctx.measureText(textStr);
+                let w = measure.width;
+                h = measure.emHeightAscent;
+
+                if(w >= width - 10) {
+                    textStr = textStr.slice(0, -1);
+                }
+            }
+            ctx.fillStyle = "#000000"
+            ctx.fillText(textStr, left + 5, top + height / 2 + h / 2);
+
+            ctx.restore();
+
     }
     public testError(outputs: number[], power?:number): number{
 
@@ -138,13 +182,15 @@ export class NeuralNetwork {
 
     layers: Layer[] = [];
     activationFunction: ActivationFunction = 'tanh';
-    constructor(inputSize: number, hiddenLayerSizes: number[], outputSize: number, activationFunction: ActivationFunction) {
+    outputActivationFunction: ActivationFunction = 'tanh';
+    constructor(inputSize: number, hiddenLayerSizes: number[], outputSize: number, activationFunction: ActivationFunction, outputActivationFunction:ActivationFunction) {
         this.numOfLayers = hiddenLayerSizes.length + 2;
         this.inputSize = inputSize
         this.hiddenLayerSizes = hiddenLayerSizes;
         this.outputSize = outputSize;
         this.initLayers();
         this.activationFunction = activationFunction;
+        this.outputActivationFunction = outputActivationFunction;
     }
     public run(inputs: number[]) {
         if (inputs.length != this.inputSize) {
@@ -164,7 +210,7 @@ export class NeuralNetwork {
                     neuron.value += weight.value * this.getNodeValue(weight.to);
                 }
                 neuron.value += neuron.bias;
-                neuron.value = this.activate(neuron.value);
+                neuron.activate();
                 
             }
         }
@@ -221,19 +267,8 @@ export class NeuralNetwork {
     public getOutputLayer(): Layer {
         return this.layers[this.numOfLayers - 1]
     }
-    public activate(n: number){
-        switch (this.activationFunction){
-            case "relu":
-                return (n <= 0)? 0: n;
-            case "sigmoid":
-                return 1 / (1 + Math.pow(Math.E, -n));
-            case "tanh":
-                return Math.tanh(n);
-
-        }
-    }
     public clone(): NeuralNetwork {
-        let nn = new NeuralNetwork(this.inputSize, this.hiddenLayerSizes, this.outputSize, this.activationFunction);
+        let nn = new NeuralNetwork(this.inputSize, this.hiddenLayerSizes, this.outputSize, this.activationFunction, this.outputActivationFunction);
 
         nn.startRandomBias = this.startRandomBias;
         nn.startRandomWeights = this.startRandomWeights;
@@ -264,18 +299,18 @@ export class NeuralNetwork {
         return nn;
     }
     private initLayers(): void {
-        this.initNextLayer(this.inputSize, false);
+        this.initNextLayer(this.inputSize, false, this.activationFunction);
         for (let i = 0; i < this.hiddenLayerSizes.length; i++) {
-            this.initNextLayer(this.hiddenLayerSizes[i], this.startRandomBias)
+            this.initNextLayer(this.hiddenLayerSizes[i], this.startRandomBias, this.activationFunction)
         }
-        this.initNextLayer(this.outputSize, this.startRandomBias);
+        this.initNextLayer(this.outputSize, this.startRandomBias, this.outputActivationFunction);
     }
-    private initNextLayer(numOfNeurons: number, randomBias: boolean) {
+    private initNextLayer(numOfNeurons: number, randomBias: boolean, activationFunction:ActivationFunction) {
         const layerNeurons: Neuron[] = [];
         for (let j = 0; j < numOfNeurons; j++) {
             const neuronWeights: Weight[] = this.initWeights();
 
-            layerNeurons.push(new Neuron(neuronWeights, (randomBias ? Math.random() * 2 - 1 : 0)));
+            layerNeurons.push(new Neuron(neuronWeights, (randomBias ? Math.random() * 2 - 1 : 0), activationFunction));
         }
         this.layers.push(new Layer(layerNeurons));
     }
@@ -563,7 +598,7 @@ export class NeuralNetwork {
                 let input2 = axis2low + j * (axis2high - axis2low) / (rows - 1);
                 let val = this.run([input1, input2]);
 
-                let error = test([input1, input2])[0] - val.neurons[0].value;
+                let error = val.neurons[0].value - test([input1, input2])[0];
                 ctx.fillStyle = this.numToColorWhite(error * errorRange);
                 ctx.fillRect(x, y, spaceX + (showText? -1: 1), spaceY + (showText? -1: 1));
 
@@ -693,10 +728,23 @@ class Neuron {
     value: number;
     weights: Weight[];
     bias: number;
-    constructor(weights: Weight[], bias: number) {
+    activationFunction: ActivationFunction;
+    constructor(weights: Weight[], bias: number, activationFunction: ActivationFunction) {
         this.value = 0;
         this.weights = weights;
         this.bias = bias;
+        this.activationFunction = activationFunction;
+    }
+    public activate(){
+        switch (this.activationFunction){
+            case "relu":
+                this.value = (this.value <= 0)? 0: this.value;
+            case "sigmoid":
+                this.value = 1 / (1 + Math.pow(Math.E, -this.value));
+            case "tanh":
+               this.value = Math.tanh(this.value);
+
+        }
     }
 }
 class Weight {

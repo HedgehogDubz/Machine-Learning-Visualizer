@@ -4,77 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neural Network Visualizer</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 15px;
-            overflow: hidden;
-        }
-
-        h1 {
-            color: white;
-            margin-bottom: 15px;
-            text-align: center;
-            font-size: 2rem;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-            flex-shrink: 0;
-        }
-
-        .canvasWrap {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            padding: 10px;
-            width: 90vw;
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-        }
-
-        #canvas {
-            border: 2px solid #667eea;
-            border-radius: 5px;
-            background: #f8f9fa;
-            width: 100%;
-            height: 100%;
-        }
-    </style>
+    <link rel="stylesheet" type="text/css"  href="index.css"/>
+        
 </head>
 <body>
-    <h1>Neural Network Visualizer</h1>
-    <div>
-        <select id = "showDataFormat" onchange="showDataChange()">
-            <option value="output">Output</option>
-            <option value="error">Error</option>
-            <option value="test">Test</option>
-        </select>
-        <select id = "showNetworkFormat" onchange="showNetworkChange()">
-            <option value="all">All</option>
-            <option value="best">Best</option>
-        </select>
-        <select id = "testFunction" onchange="testFunctionChange()">
-            <option value="wave">Wave</option>
-            <option value="radial">Radial</option>
-            <option value="xy">XY</option>
-        </select>
-        <button id="startButton" onclick="startToggle()"><p id="startToggleText">Start</p></button>
-        <button id="resetButton" onclick="reset()"><p id="resetToggleText">Reset</p></button>
-    </div>
-    <div class="canvasWrap">
-        <canvas id="canvas"></canvas>
+    <div class="container">
+        <div class="sidebar">
+            <h1>Controls</h1>
+
+            <label>Neural Network Format</label>
+            <select id="showDataFormat" onchange="networkChange()">
+                <option value="output">2 Input; 1 Output</option>
+                <option value="error">2 Input; 2 Output</option>
+            </select>
+
+            <label>Data Format</label>
+            <select id="showDataFormat" onchange="showDataChange()">
+                <option value="output">Output</option>
+                <option value="error">Error</option>
+                <option value="test">Test</option>
+            </select>
+
+            <label>Network View</label>
+            <select id="showNetworkFormat" onchange="showNetworkChange()">
+                <option value="best">Best</option>
+                <option value="all">All</option>
+            </select>
+
+            <label>Test Function</label>
+            <select id="testFunction" onchange="testFunctionChange()">
+                <option value="wave">Wave</option>
+                <option value="radial">Radial</option>
+                <option value="xy">XY</option>
+            </select>
+
+            <label>Generations per Draw Cycle</label>
+            <input type="range" id="generationsPerDrawCycleSlider" min="1" max="100" step="1" value="1" oninput="inputSliderChange()">
+            <input type="number" id="generationsPerDrawCycle" step="1" value="1" onchange="inputChange()">
+
+            <label>Input 1</label>
+            <input type="range" id="input1Slider" min="-1" max="1" step="0.01" value="0" oninput="inputSliderChange()">
+            <input type="number" id="input1" step="0.01" value="0" onchange="inputChange()">
+
+            <label>Input 2</label>
+            <input type="range" id="input2Slider" min="-1" max="1" step="0.01" value="0" oninput="inputSliderChange()">
+            <input type="number" id="input2" step="0.01" value="0" onchange="inputChange()">
+
+            <button id="startButton" onclick="startToggle()"><span id="startToggleText">Start</span></button>
+            <button id="resetButton" onclick="reset()">Reset</button>
+        </div>
+
+        <div class="canvasWrap">
+            <canvas id="canvas"></canvas>
+        </div>
     </div>
     <script type="module" src="index.js"></script>
 </body>
