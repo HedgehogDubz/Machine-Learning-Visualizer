@@ -500,11 +500,13 @@ export class NeuralNetwork {
                 if (showText) {
                     ctx.fillStyle = '#000000';
                     let text = cellValue.toFixed(decimals);
-                    if (ctx.measureText(text).width > spaceX * 0.9) {
+                    let textWidth = ctx.measureText(text).width;
+                    if (textWidth > spaceX * 0.9) {
                         text = cellValue.toFixed(Math.max(0, decimals - 1));
-                    }
-                    if (ctx.measureText(text).width > spaceX * 0.9) {
-                        text = cellValue.toFixed(0);
+                        textWidth = ctx.measureText(text).width;
+                        if (textWidth > spaceX * 0.9) {
+                            text = cellValue.toFixed(0);
+                        }
                     }
                     ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
                 }

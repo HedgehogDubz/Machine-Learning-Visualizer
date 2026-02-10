@@ -14,13 +14,14 @@ window.onload = function () {
     setInterval(() => {
         update();
         frame++;
-    }, 10);
+    }, 1);
 };
 let isStarted = false;
 let networkFormat = 'Val2in1out';
 let showDataFormat = 'output';
 let showNetworkFormat = 'best';
-let testFunction = 'wave';
+let testFunctionVal2in1out = 'wave';
+let testFunctionCat2in2out = 'circle';
 let showTrainingData = 'none';
 let input1 = 0;
 let input2 = 0;
@@ -89,8 +90,8 @@ function update() {
     const axis2low = -1;
     const axis2high = 1;
     const decimals = -1;
-    const rows = 101;
-    const columns = 101;
+    const rows = 51;
+    const columns = 51;
     const ouputMiddle = 0;
     const outputRange = 1;
     //V for visible (as in the 11x11 one cuz you can see the values) not vendetta
@@ -153,16 +154,42 @@ function createInputs(numOfInputs, high, low, spacing) {
     return result;
 }
 function test(inputs) {
-    switch (testFunction) {
-        case "wave":
-            let out = inputs[0] > Math.sin(inputs[1] * 2 * Math.PI) ** 1 ? 1 : -1;
-            return [out];
-        case "radial":
-            let out1 = Math.max(Math.min(1 - 2 * (inputs[0] ** 2 + inputs[1] ** 2), 1), -1);
-            return [out1];
-        case "xy":
-            let out2 = inputs[0] * inputs[1];
-            return [out2];
+    switch (networkFormat) {
+        case "Val2in1out":
+            switch (testFunctionVal2in1out) {
+                case "wave":
+                    return [inputs[0] > Math.sin(inputs[1] * 2 * Math.PI) ? 1 : -1];
+                case "radial":
+                    return [Math.max(Math.min(1 - 2 * (inputs[0] ** 2 + inputs[1] ** 2), 1), -1)];
+                case "xy":
+                    return [inputs[0] * inputs[1]];
+                case "checkerboard":
+                    return [Math.floor(inputs[0] * 4) % 2 === Math.floor(inputs[1] * 4) % 2 ? 1 : -1];
+                case "spiral":
+                    let angle = Math.atan2(inputs[1], inputs[0]);
+                    let radius = Math.sqrt(inputs[0] ** 2 + inputs[1] ** 2);
+                    return [Math.sin(angle * 3 + radius * 5) > 0 ? 1 : -1];
+                case "diagonal":
+                    return [inputs[0] + inputs[1] > 0 ? 1 : -1];
+            }
+            break;
+        case "Cat2in2out":
+            switch (testFunctionCat2in2out) {
+                case "circle":
+                    return inputs[0] ** 2 + inputs[1] ** 2 < 0.5 ? [1, 0] : [0, 1];
+                case "square":
+                    return Math.abs(inputs[0]) < 0.5 && Math.abs(inputs[1]) < 0.5 ? [1, 0] : [0, 1];
+                case "quadrants":
+                    return inputs[0] * inputs[1] > 0 ? [1, 0] : [0, 1];
+                case "donut":
+                    let r = inputs[0] ** 2 + inputs[1] ** 2;
+                    return r > 0.25 && r < 0.75 ? [1, 0] : [0, 1];
+                case "xor":
+                    return (inputs[0] > 0) !== (inputs[1] > 0) ? [1, 0] : [0, 1];
+                case "diagonal":
+                    return inputs[0] > inputs[1] ? [1, 0] : [0, 1];
+            }
+            break;
     }
     return [0];
 }
@@ -182,6 +209,9 @@ function startToggle() {
 window.startToggle = startToggle;
 function networkChange() {
     networkFormat = document.getElementById('networkFormat').value;
+    // Update test function dropdown options
+    const testFunctionDropdown = document.getElementById('testFunction');
+    testFunctionDropdown.innerHTML = '';
     switch (networkFormat) {
         case 'Val2in1out':
             numOfNeuralNetworks = 16;
@@ -190,6 +220,16 @@ function networkChange() {
             hiddenLayerSizes = [7, 10, 20, 20, 10, 7];
             activationFunction = 'relu';
             outputActivationFunction = 'tanh';
+            // Add Val2in1out options
+            testFunctionDropdown.innerHTML = `
+                <option value="wave">Wave</option>
+                <option value="radial">Radial</option>
+                <option value="xy">XY Product</option>
+                <option value="checkerboard">Checkerboard</option>
+                <option value="spiral">Spiral</option>
+                <option value="diagonal">Diagonal</option>
+            `;
+            testFunctionDropdown.value = testFunctionVal2in1out;
             break;
         case 'Cat2in2out':
             numOfNeuralNetworks = 16;
@@ -198,8 +238,20 @@ function networkChange() {
             hiddenLayerSizes = [7, 10, 20, 20, 10, 7];
             activationFunction = 'relu';
             outputActivationFunction = 'tanh';
+            // Add Cat2in2out options
+            testFunctionDropdown.innerHTML = `
+                <option value="circle">Circle</option>
+                <option value="square">Square</option>
+                <option value="quadrants">Quadrants (XY Sign)</option>
+                <option value="donut">Donut</option>
+                <option value="xor">XOR</option>
+                <option value="diagonal">Diagonal</option>
+            `;
+            testFunctionDropdown.value = testFunctionCat2in2out;
             break;
     }
+    nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
+    createTrials();
 }
 window.networkChange = networkChange;
 function showDataChange() {
@@ -211,7 +263,13 @@ function showNetworkChange() {
 }
 window.showNetworkChange = showNetworkChange;
 function testFunctionChange() {
-    testFunction = document.getElementById('testFunction').value;
+    const value = document.getElementById('testFunction').value;
+    if (networkFormat === 'Val2in1out') {
+        testFunctionVal2in1out = value;
+    }
+    else {
+        testFunctionCat2in2out = value;
+    }
     createTrials();
 }
 window.testFunctionChange = testFunctionChange;
