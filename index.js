@@ -17,6 +17,7 @@ window.onload = function () {
     }, 1);
 };
 let isStarted = false;
+let networkFormat = '2in1out';
 let showDataFormat = 'output';
 let showNetworkFormat = 'best';
 let testFunction = 'wave';
@@ -32,6 +33,7 @@ let activationFunction = 'relu';
 let outputActivationFunction = 'tanh';
 let nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
 let lastError = Infinity;
+console.log("speed");
 function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width;

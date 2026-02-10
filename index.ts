@@ -45,7 +45,7 @@ let activationFunction: ActivationFunction = 'relu';
 let outputActivationFunction: ActivationFunction = 'tanh';
 let nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
 let lastError = Infinity;
-
+console.log("speed");
 function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width;
