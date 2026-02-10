@@ -20,18 +20,20 @@ window.onload = function() {
     setInterval(()=>{
         update();
         frame++;
-    }, 1);
+    }, 10);
 };
 
 let isStarted = false;
-let networkFormat: networkType = '2in1out';
-type networkType = '2in1out' | '2in2out';
+let networkFormat: networkType = 'Val2in1out';
+type networkType = 'Val2in1out' | 'Cat2in2out';
 let showDataFormat: ShowDataType = 'output';
-type ShowDataType = 'output' | 'error' | 'test';
+type ShowDataType = 'none' | 'output' | 'error' | 'test';
 let showNetworkFormat: ShowNetworkType = 'best';
 type ShowNetworkType = 'best' | 'all';
 let testFunction: TestFunctionType = 'wave';
 type TestFunctionType = 'wave' | 'radial' | 'xy';
+let showTrainingData: ShowTrainingDataType = 'none';
+type ShowTrainingDataType = 'none' | 'output' | 'error' | 'test';
 let input1 = 0;
 let input2 = 0;
 let generationsPerDrawCycle = 1;
@@ -81,6 +83,15 @@ function update() {
     }
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const padding = 0.001;
+
+    const hcw = canvas.width / 2;
+    const hch = canvas.height / 2;
+
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, hch - padding * canvas.width, canvas.width, padding * canvas.width * 2);
+
     const displayErrorDigits = 5;
     const displayMeanError = true;
     const displayHeaderHeight = 50;
@@ -88,23 +99,23 @@ function update() {
     switch(showNetworkFormat){
         case "all":
             const rowSize = 4;
-            nnl.draw(ctx, 0, 0, canvas.width, canvas.height / 2, rowSize, displayHeaderHeight, displayHeader, displayErrorDigits, displayMeanError);
+            nnl.draw(ctx, 0, 0, canvas.width, hch, rowSize, displayHeaderHeight, displayHeader, displayErrorDigits, displayMeanError);
             break;
         case "best":
             nnl.drawHeader(ctx, 0, 0, canvas.width, displayHeaderHeight);
 
             let n = nnl.neuralNetworks[0].clone();
             n.run([input1, input2]);
-            n.draw(ctx, 0, displayHeaderHeight, canvas.width, canvas.height / 2 - displayHeaderHeight, displayErrorDigits, displayMeanError)
+            n.draw(ctx, 0, displayHeaderHeight, canvas.width, hch - displayHeaderHeight, displayErrorDigits, displayMeanError)
     }
 
 
 
 
-    const axis1low = 1;
-    const axis1high = -1;
-    const axis2low = 1;
-    const axis2high = -1;
+    const axis1low = -1;
+    const axis1high = 1;
+    const axis2low = -1;
+    const axis2high = 1;
 
 
     const decimals = -1;
@@ -118,24 +129,36 @@ function update() {
     const rowsV = 11;
     const columnsV = 11;
 
-    const padding = 0.001;
-    ctx.fillRect(0, canvas.height / 2 - padding * canvas.width, canvas.width, canvas.height / 2 + padding * canvas.width);
+
     
     switch(showDataFormat){
+        case "none":
+            ctx.fillRect(0, hch, hcw - padding * canvas.width, hch);
+            nnl.neuralNetworks[0].display2Input1Output(ctx, hcw + padding * canvas.width, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rowsV, columnsV,  decimalsV, true, true);
+            break;
         case "error":
             let errorRange = 1;
-            nnl.neuralNetworks[0].display2Input1OutputError(test, ctx, 0, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, errorRange, rows, columns, decimals, false, false);
-            nnl.neuralNetworks[0].display2Input1OutputError(test, ctx, canvas.width / 2 + padding * canvas.width, canvas.height / 2, canvas.width / 2, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, errorRange, rowsV, columnsV, decimalsV, true, true);
+            nnl.neuralNetworks[0].display2Input1OutputError(ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, errorRange, rows, columns, decimals, false, false, test);
+            nnl.neuralNetworks[0].display2Input1OutputError(ctx, hcw + padding * canvas.width, hch, hcw, hch, axis1low, axis2low, axis1high, axis2high, errorRange, rowsV, columnsV, decimalsV, true, true, test);
             break;
         case "output":
-            
-            nnl.neuralNetworks[0].display2Input1Output(ctx, 0, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rows, columns, decimals, false, false);
-            nnl.neuralNetworks[0].display2Input1Output(ctx, canvas.width / 2 + padding * canvas.width, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rowsV, columnsV, decimalsV, true, true);
+            nnl.neuralNetworks[0].display2Input1Output(ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rows, columns, decimals, false, false);
+            nnl.neuralNetworks[0].display2Input1Output(ctx, hcw + padding * canvas.width, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rowsV, columnsV,  decimalsV, true, true);
             break;
         case "test":
-
-            nnl.neuralNetworks[0].display2Input1OutputTest(test, ctx, 0, canvas.height / 2, canvas.width / 2 - padding * canvas.width, canvas.height / 2, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rows, columns, decimals, false, false);
-            nnl.neuralNetworks[0].display2Input1OutputTest(test, ctx, canvas.width / 2 + padding * canvas.width, canvas.height / 2, canvas.width / 2, canvas.height / 2, axis1low, axis2low, axis1high, axis2high,  ouputMiddle, outputRange, rowsV, columnsV, decimalsV, true, true);
+            nnl.neuralNetworks[0].display2Input1OutputTest(ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange, rows, columns, decimals, false, false, test);
+            nnl.neuralNetworks[0].display2Input1OutputTest(ctx, hcw + padding * canvas.width, hch, hcw, hch, axis1low, axis2low, axis1high, axis2high,  ouputMiddle, outputRange, rowsV, columnsV, decimalsV, true, true, test);
+            break;
+    }
+    switch(showTrainingData){
+        case "error":
+            nnl.display2Input1OutputDataPoints((inputs) => [nnl.neuralNetworks[0].run(inputs).neurons[0].value - test(inputs)[0]], ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange);
+            break;
+        case "output":
+            nnl.display2Input1OutputDataPoints((inputs) => [nnl.neuralNetworks[0].run(inputs).neurons[0].value], ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange);
+            break;
+        case "test":
+            nnl.display2Input1OutputDataPoints(test, ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange);
             break;
     }
 
@@ -198,7 +221,28 @@ function startToggle(){
     isStarted = !isStarted;
 }
 (window as any).startToggle = startToggle;
-
+function networkChange(){
+    networkFormat = (document.getElementById('networkFormat') as HTMLSelectElement).value as networkType;
+    switch (networkFormat){
+        case 'Val2in1out':
+            numOfNeuralNetworks = 16;
+            inputSize = 2;
+            outputSize = 1;
+            hiddenLayerSizes = [7, 10, 20, 20, 10, 7];
+            activationFunction = 'relu';
+            outputActivationFunction = 'tanh';
+            break;
+        case 'Cat2in2out':
+            numOfNeuralNetworks = 16;
+            inputSize = 2;
+            outputSize = 2;
+            hiddenLayerSizes = [7, 10, 20, 20, 10, 7];
+            activationFunction = 'relu';
+            outputActivationFunction = 'tanh';
+            break;
+    }
+}
+(window as any).networkChange = networkChange;
 function showDataChange(){
     showDataFormat = (document.getElementById('showDataFormat') as HTMLSelectElement).value as ShowDataType;
 }
@@ -237,4 +281,8 @@ function reset(){
     createTrials();
 }
 (window as any).reset = reset;
+function showTrainingDataChange(){
+    showTrainingData = (document.getElementById('showTrainingData') as HTMLSelectElement).value as ShowTrainingDataType;
+}
+(window as any).showTrainingDataChange = showTrainingDataChange;
 ///////////////////////UI AREA////////////////////////////////////

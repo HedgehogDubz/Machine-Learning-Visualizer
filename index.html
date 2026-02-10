@@ -13,13 +13,21 @@
             <h1>Controls</h1>
 
             <label>Neural Network Format</label>
-            <select id="showDataFormat" onchange="networkChange()">
-                <option value="output">2 Input; 1 Output</option>
-                <option value="error">2 Input; 2 Output</option>
+            <select id="networkFormat" onchange="networkChange()">
+                <option value="Val2in1out">Value: 2 Input, 1 Output</option>
+                <option value="Cat2in2out">Categorize: 2 Input, 2 Output</option>
             </select>
-
             <label>Data Format</label>
             <select id="showDataFormat" onchange="showDataChange()">
+                <option value="none">None</option>
+                <option value="output" selected>Output</option>
+                <option value="error">Error</option>
+                <option value="test">Test</option>
+            </select>
+
+            <label>Show Training Data</label>
+            <select id="showTrainingData" onchange="showTrainingDataChange()">
+                <option value="none">None</option>
                 <option value="output">Output</option>
                 <option value="error">Error</option>
                 <option value="test">Test</option>

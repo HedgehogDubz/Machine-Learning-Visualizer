@@ -11,7 +11,7 @@ export class NeuralNetworkList {
     trialInputsList: number[][] = [];
     trialOutputsList: number[][] = [];
     trialPower: number = 2;
-
+    trainingData = [];
     constructor(numOfNeuralNetworks:number, inputSize: number, hiddenLayerSizes: number[], outputSize: number, activationFunction: ActivationFunction, outputActivationFunction:ActivationFunction){
         this.numOfNeuralNetworks = numOfNeuralNetworks;
         for(let i = 0; i < numOfNeuralNetworks; i++){
@@ -32,19 +32,19 @@ export class NeuralNetworkList {
     }
     public draw(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, height: number, rowSize: number, displayHeaderHeight?:number, displayHeader?:boolean, displayErrorDigits?: number, displayMeanError?: boolean){
         let xSpace = width / rowSize;
-        let ySpace = height / Math.ceil(this.neuralNetworks.length / rowSize);
+        let ySpace = (height - (displayHeader ? displayHeaderHeight : 0)) / Math.ceil(this.neuralNetworks.length / rowSize);
         let col = 0;
         let row = 0;
 
         //draw header
         if (displayHeader){
-            this.drawHeader(ctx, left, top, width, displayHeaderHeight);
+            this.drawHeader(ctx, left, top, width, (displayHeader ? displayHeaderHeight : 0));
         }
 
 
         //draw networks
         this.neuralNetworks.forEach((nn: NeuralNetwork) => {
-            nn.draw(ctx, left + xSpace * col, top + ySpace * row + (displayHeader? 20: 0), xSpace, ySpace, displayErrorDigits, displayMeanError);
+            nn.draw(ctx, left + xSpace * col, top + ySpace * row + (displayHeader? displayHeaderHeight: 0), xSpace, ySpace, displayErrorDigits, displayMeanError);
             col++;
             if(col >= rowSize){
                 col = 0;
@@ -67,23 +67,22 @@ export class NeuralNetworkList {
             ctx.fillRect(left, top, width, height);
             let textStr = "Generation: " + this.generation;
             ctx.font = '12px sans-serif';
+            ctx.textBaseline = 'middle';
             let measure = ctx.measureText(textStr);
             let w = measure.width;
-            let h = measure.emHeightAscent;
 
             if(w >= width - 10) {
-                let textStr = "Gen: " + this.generation
+                textStr = "Gen: " + this.generation
                 ctx.font = '12px sans-serif';
-                let measure = ctx.measureText(textStr);
-                let w = measure.width;
-                h = measure.emHeightAscent;
+                measure = ctx.measureText(textStr);
+                w = measure.width;
 
                 if(w >= width - 10) {
                     textStr = textStr.slice(0, -1);
                 }
             }
             ctx.fillStyle = "#000000"
-            ctx.fillText(textStr, left + 5, top + height / 2 + h / 2);
+            ctx.fillText(textStr, left + 5, top + height / 2);
 
             ctx.restore();
 
@@ -97,6 +96,25 @@ export class NeuralNetworkList {
         this.neuralNetworks.forEach((nn: NeuralNetwork) => {
             nn.testError(outputs, false, power);
         });
+
+    }
+    public display2Input1OutputDataPoints(test: (inputs: number[]) => number[], ctx, left, top, width, height, axis1low: number, axis2low: number, axis1high: number, axis2high: number, outputMiddle:number, outputRange: number){
+        
+        ctx.save();
+        ctx.rect(left, top, width, height);
+        ctx.clip();
+
+        this.trialInputsList.forEach((input) => {
+            const x = left + ((input[0] - axis1low) / (axis1high - axis1low)) * width;
+            const y = top + ((input[1] - axis2low) / (axis2high - axis2low)) * height;
+
+            ctx.fillStyle = "black";
+            drawCircle(ctx, {x, y}, Math.min(width, height) / 100);
+            ctx.fillStyle = this.numToColorWhite((test(input)[0] - outputMiddle) / outputRange);
+            drawCircle(ctx, {x, y}, Math.min(width, height) / 120);
+        })
+
+        ctx.restore();
 
     }
     public testErrorTrials(inputsList: number[][], outputsList: number[][], power?: number){
@@ -113,7 +131,7 @@ export class NeuralNetworkList {
             nn.error = (nn.error / inputsList.length) ** (1 / p);
             nn.meanError /= inputsList.length;
         });
-
+        
     }
     public resetError(){
         this.neuralNetworks.forEach(nn => {
@@ -161,7 +179,25 @@ export class NeuralNetworkList {
         this.neuralNetworks.sort((a, b) => a.error - b.error);
     }
     
+    private numToColorBlack(num: number): string {
+        if (num >= 0) {
+            return "rgb(0, " + (Math.tanh(num)) * 255 + ",0)"
+        }
+        if (num < 0) {
+            return "rgb(" + (-Math.tanh(num)) * 255 + ", 0 ,0)"
 
+        }
+        return ""
+    }
+    private numToColorWhite(num: number): string {
+        if (num >= 0) {
+            return "rgb(" + (1 - Math.tanh(num)) * 255 + ", 255," + (1 - Math.tanh(num)) * 255 + ")"
+        }
+        if (num < 0) {
+            return "rgb(255, " + (1 + Math.tanh(num)) * 255 + "," + (1 + Math.tanh(num)) * 255 + ")"
+        }
+        return ""
+    }
 }
 ///////////////////////////////////Neural Network////////////////////////////////////////////////////////
 export class NeuralNetwork {
@@ -458,242 +494,111 @@ export class NeuralNetwork {
             }
         }
     }
+    
+    private displayGrid2Input1Output(ctx, left: number, top: number, width: number, height: number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, rows: number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, getCellValue: (input1: number, input2: number) => number, getColorValue: (cellValue: number) => number){
+        const headerOffset = showHeaders ? 1 : 0;
+        let spaceX = width / (columns + headerOffset);
+        let spaceY = height / (rows + headerOffset);
+
+        ctx.save();
+        ctx.font = `${Math.min(spaceX, spaceY) * 0.3}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#e0e0e0';
+        ctx.fillRect(left, top, width, height);
+
+        if (showHeaders) {
+            for (let i = 0; i < columns; i++){
+                let x = left + (i + 1) * spaceX;
+                let y = top;
+                let headerValue = axis1low + i * (axis1high - axis1low) / (columns - 1);
+
+                ctx.fillStyle = '#000000';
+                let text = headerValue.toFixed(2);
+                if (ctx.measureText(text).width > spaceX * 0.9) {
+                    text = headerValue.toFixed(1);
+                }
+                if (ctx.measureText(text).width > spaceX * 0.9) {
+                    text = headerValue.toFixed(0);
+                }
+                ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
+            }
+
+            for (let j = 0; j < rows; j++){
+                let x = left;
+                let y = top + (j + 1) * spaceY;
+                let headerValue = axis2low + j * (axis2high - axis2low) / (rows - 1);
+
+                ctx.fillStyle = '#e0e0e0';
+                ctx.fillRect(x, y, spaceX, spaceY);
+
+                ctx.fillStyle = '#000000';
+                let text = headerValue.toFixed(2);
+                if (ctx.measureText(text).width > spaceX * 0.9) {
+                    text = headerValue.toFixed(1);
+                }
+                if (ctx.measureText(text).width > spaceX * 0.9) {
+                    text = headerValue.toFixed(0);
+                }
+                ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
+            }
+
+            ctx.fillStyle = '#c0c0c0';
+            ctx.fillRect(left, top, spaceX, spaceY);
+        }
+
+        for (let i = 0; i < columns; i++){
+            for (let j = 0; j < rows; j++){
+                let x = left + (i + headerOffset) * spaceX;
+                let y = top + (j + headerOffset) * spaceY;
+                let input1 = axis1low + i * (axis1high - axis1low) / (columns - 1);
+                let input2 = axis2low + j * (axis2high - axis2low) / (rows - 1);
+
+                let cellValue = getCellValue(input1, input2);
+                ctx.fillStyle = this.numToColorWhite(getColorValue(cellValue));
+                ctx.fillRect(x, y, spaceX + (showText? -1: 1), spaceY + (showText? -1: 1));
+
+                if(showText){
+                    ctx.fillStyle = '#000000';
+                    let text = cellValue.toFixed(decimals);
+                    if (ctx.measureText(text).width > spaceX * 0.9) {
+                        text = cellValue.toFixed(Math.max(0, decimals - 1));
+                    }
+                    if (ctx.measureText(text).width > spaceX * 0.9) {
+                        text = cellValue.toFixed(0);
+                    }
+                    ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
+                }
+            }
+        }
+        ctx.restore();
+        
+    }
+    
+    public display2Input1OutputError (ctx, left: number, top: number, width:number, height:number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, errorRange: number, rows:number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, test: (inputs: number[]) => number[]){
+        this.displayGrid2Input1Output(ctx, left, top, width, height, axis1low, axis2low, axis1high, axis2high, rows, columns, decimals, showText, showHeaders,
+            (input1, input2) => {
+                let val = this.run([input1, input2]);
+                return val.neurons[0].value - test([input1, input2])[0];
+            },
+            (cellValue) => cellValue * errorRange
+        );
+    }
+
+    public display2Input1OutputTest(ctx, left: number, top: number, width:number, height:number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, ouputMiddle:number, outputRange: number, rows:number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, test: (inputs: number[]) => number[]){
+        this.displayGrid2Input1Output(ctx, left, top, width, height, axis1low, axis2low, axis1high, axis2high, rows, columns, decimals, showText, showHeaders,
+            (input1, input2) => test([input1, input2])[0],
+            (cellValue) => cellValue * outputRange - ouputMiddle
+        );
+    }
+
     public display2Input1Output(ctx, left: number, top: number, width:number, height:number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, ouputMiddle:number, outputRange: number, rows:number, columns: number, decimals: number, showText: boolean, showHeaders: boolean){
-        const headerOffset = showHeaders ? 1 : 0;
-        let spaceX = width / (columns + headerOffset);
-        let spaceY = height / (rows + headerOffset);
-
-        ctx.save();
-        ctx.font = `${Math.min(spaceX, spaceY) * 0.3}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#e0e0e0';
-        ctx.fillRect(left, top, width, height);
-
-        if (showHeaders) {
-            for (let i = 0; i < columns; i++){
-                let x = left + (i + 1) * spaceX;
-                let y = top;
-                let headerValue = axis1low + i * (axis1high - axis1low) / (columns - 1);
-
-                ctx.fillStyle = '#000000';
-                let text = headerValue.toFixed(2);
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(1);
-                }
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(0);
-                }
-                ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
-            }
-
-            for (let j = 0; j < rows; j++){
-                let x = left;
-                let y = top + (j + 1) * spaceY;
-                let headerValue = axis2low + j * (axis2high - axis2low) / (rows - 1);
-
-                ctx.fillStyle = '#e0e0e0';
-                ctx.fillRect(x, y, spaceX, spaceY);
-
-                ctx.fillStyle = '#000000';
-                let text = headerValue.toFixed(2);
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(1);
-                }
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(0);
-                }
-                ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
-            }
-
-            ctx.fillStyle = '#c0c0c0';
-            ctx.fillRect(left, top, spaceX, spaceY);
-        }
-
-        for (let i = 0; i < columns; i++){
-            for (let j = 0; j < rows; j++){
-                let x = left + (i + headerOffset) * spaceX;
-                let y = top + (j + headerOffset) * spaceY;
-                let input1 = axis1low + i * (axis1high - axis1low) / (columns - 1);
-                let input2 = axis2low + j * (axis2high - axis2low) / (rows - 1);
-                let val = this.run([input1, input2]);
-
-                ctx.fillStyle = this.numToColorWhite(val.neurons[0].value * outputRange - ouputMiddle);
-                ctx.fillRect(x, y, spaceX + (showText? -1: 1), spaceY + (showText? -1: 1));
-
-                if(showText){
-                    ctx.fillStyle = '#000000';
-                    let text = val.neurons[0].value.toFixed(decimals);
-                    if (ctx.measureText(text).width > spaceX * 0.9) {
-                        text = val.neurons[0].value.toFixed(Math.max(0, decimals - 1));
-                    }
-                    if (ctx.measureText(text).width > spaceX * 0.9) {
-                        text = val.neurons[0].value.toFixed(0);
-                    }
-                    ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
-                }
-            }
-        }
-
-        ctx.restore();
+        this.displayGrid2Input1Output(ctx, left, top, width, height, axis1low, axis2low, axis1high, axis2high, rows, columns, decimals, showText, showHeaders,
+            (input1, input2) => this.run([input1, input2]).neurons[0].value,
+            (cellValue) => cellValue * outputRange - ouputMiddle
+        );
     }
-    public display2Input1OutputError (test: (inputs: number[]) => number[],ctx, left: number, top: number, width:number, height:number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, errorRange: number, rows:number, columns: number, decimals: number, showText: boolean, showHeaders: boolean){
-        const headerOffset = showHeaders ? 1 : 0;
-        let spaceX = width / (columns + headerOffset);
-        let spaceY = height / (rows + headerOffset);
 
-        ctx.save();
-        ctx.font = `${Math.min(spaceX, spaceY) * 0.3}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        if (showHeaders) {
-            for (let i = 0; i < columns; i++){
-                let x = left + (i + 1) * spaceX;
-                let y = top;
-                let headerValue = axis1low + i * (axis1high - axis1low) / (columns - 1);
-
-                ctx.fillStyle = '#e0e0e0';
-                ctx.fillRect(x, y, spaceX, spaceY);
-
-                ctx.fillStyle = '#000000';
-                let text = headerValue.toFixed(2);
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(1);
-                }
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(0);
-                }
-                ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
-            }
-
-            for (let j = 0; j < rows; j++){
-                let x = left;
-                let y = top + (j + 1) * spaceY;
-                let headerValue = axis2low + j * (axis2high - axis2low) / (rows - 1);
-
-                ctx.fillStyle = '#e0e0e0';
-                ctx.fillRect(x, y, spaceX, spaceY);
-
-                ctx.fillStyle = '#000000';
-                let text = headerValue.toFixed(2);
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(1);
-                }
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(0);
-                }
-                ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
-            }
-
-            ctx.fillStyle = '#c0c0c0';
-            ctx.fillRect(left, top, spaceX, spaceY);
-        }
-
-        for (let i = 0; i < columns; i++){
-            for (let j = 0; j < rows; j++){
-                let x = left + (i + headerOffset) * spaceX;
-                let y = top + (j + headerOffset) * spaceY;
-                let input1 = axis1low + i * (axis1high - axis1low) / (columns - 1);
-                let input2 = axis2low + j * (axis2high - axis2low) / (rows - 1);
-                let val = this.run([input1, input2]);
-
-                let error = val.neurons[0].value - test([input1, input2])[0];
-                ctx.fillStyle = this.numToColorWhite(error * errorRange);
-                ctx.fillRect(x, y, spaceX + (showText? -1: 1), spaceY + (showText? -1: 1));
-
-                if(showText){
-                    ctx.fillStyle = '#000000';
-                    let text = error.toFixed(decimals);
-                    if (ctx.measureText(text).width > spaceX * 0.9) {
-                        text = error.toFixed(Math.max(0, decimals - 1));
-                    }
-                    if (ctx.measureText(text).width > spaceX * 0.9) {
-                        text = error.toFixed(0);
-                    }
-                    ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
-                }
-            }
-        }
-
-        ctx.restore();
-    }
-    public display2Input1OutputTest(test: (inputs: number[]) => number[], ctx, left: number, top: number, width:number, height:number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, ouputMiddle:number, outputRange: number, rows:number, columns: number, decimals: number, showText: boolean, showHeaders: boolean){
-        const headerOffset = showHeaders ? 1 : 0;
-        let spaceX = width / (columns + headerOffset);
-        let spaceY = height / (rows + headerOffset);
-
-        ctx.save();
-        ctx.font = `${Math.min(spaceX, spaceY) * 0.3}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#e0e0e0';
-        ctx.fillRect(left, top, width, height);
-
-        if (showHeaders) {
-            for (let i = 0; i < columns; i++){
-                let x = left + (i + 1) * spaceX;
-                let y = top;
-                let headerValue = axis1low + i * (axis1high - axis1low) / (columns - 1);
-
-                ctx.fillStyle = '#000000';
-                let text = headerValue.toFixed(2);
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(1);
-                }
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(0);
-                }
-                ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
-            }
-
-            for (let j = 0; j < rows; j++){
-                let x = left;
-                let y = top + (j + 1) * spaceY;
-                let headerValue = axis2low + j * (axis2high - axis2low) / (rows - 1);
-
-                ctx.fillStyle = '#e0e0e0';
-                ctx.fillRect(x, y, spaceX, spaceY);
-
-                ctx.fillStyle = '#000000';
-                let text = headerValue.toFixed(2);
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(1);
-                }
-                if (ctx.measureText(text).width > spaceX * 0.9) {
-                    text = headerValue.toFixed(0);
-                }
-                ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
-            }
-
-            ctx.fillStyle = '#c0c0c0';
-            ctx.fillRect(left, top, spaceX, spaceY);
-        }
-
-        for (let i = 0; i < columns; i++){
-            for (let j = 0; j < rows; j++){
-                let x = left + (i + headerOffset) * spaceX;
-                let y = top + (j + headerOffset) * spaceY;
-                let input1 = axis1low + i * (axis1high - axis1low) / (columns - 1);
-                let input2 = axis2low + j * (axis2high - axis2low) / (rows - 1);
-                ctx.fillStyle = this.numToColorWhite(test([input1, input2])[0] * outputRange - ouputMiddle);
-                ctx.fillRect(x, y, spaceX + (showText? -1: 1), spaceY + (showText? -1: 1));
-
-                if(showText){
-                    ctx.fillStyle = '#000000';
-                    let text = test([input1, input2])[0].toFixed(decimals);
-                    if (ctx.measureText(text).width > spaceX * 0.9) {
-                        text = test([input1, input2])[0].toFixed(Math.max(0, decimals - 1));
-                    }
-                    if (ctx.measureText(text).width > spaceX * 0.9) {
-                        text = test([input1, input2])[0].toFixed(0);
-                    }
-                    ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
-                }
-            }
-        }
-        ctx.restore();
-    }
     private numToColorBlack(num: number): string {
         if (num >= 0) {
             return "rgb(0, " + (Math.tanh(num)) * 255 + ",0)"
