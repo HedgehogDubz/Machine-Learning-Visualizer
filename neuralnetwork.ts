@@ -99,7 +99,7 @@ export class NeuralNetworkList {
 
     }
     public display2Input1OutputDataPoints(test: (inputs: number[]) => number[], ctx, left, top, width, height, axis1low: number, axis2low: number, axis1high: number, axis2high: number, outputMiddle:number, outputRange: number){
-        
+
         ctx.save();
         ctx.rect(left, top, width, height);
         ctx.clip();
@@ -111,6 +111,27 @@ export class NeuralNetworkList {
             ctx.fillStyle = "black";
             drawCircle(ctx, {x, y}, Math.min(width, height) / 100);
             ctx.fillStyle = this.numToColorWhite((test(input)[0] - outputMiddle) / outputRange);
+            drawCircle(ctx, {x, y}, Math.min(width, height) / 120);
+        })
+
+        ctx.restore();
+
+    }
+
+    public display2Input2OutputDataPoints(test: (inputs: number[]) => number[], ctx, left, top, width, height, axis1low: number, axis2low: number, axis1high: number, axis2high: number, color1: {r: number, g: number, b: number}, color2: {r: number, g: number, b: number}){
+
+        ctx.save();
+        ctx.rect(left, top, width, height);
+        ctx.clip();
+
+        this.trialInputsList.forEach((input) => {
+            const x = left + ((input[0] - axis1low) / (axis1high - axis1low)) * width;
+            const y = top + ((input[1] - axis2low) / (axis2high - axis2low)) * height;
+
+            const outputs = test(input);
+            ctx.fillStyle = "black";
+            drawCircle(ctx, {x, y}, Math.min(width, height) / 100);
+            ctx.fillStyle = this.neuralNetworks[0].interpolateColorPublic(color1, color2, outputs[0]);
             drawCircle(ctx, {x, y}, Math.min(width, height) / 120);
         })
 
@@ -435,23 +456,24 @@ export class NeuralNetwork {
                 let val = Math.floor(neuron.value * 1000) / 1000;
                 let textStr = val.toString();
                 let drawn: boolean = false;
+                ctx.font = '12px sans-serif';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#000000';
                 while (textStr.length > 0 && textStr != "-" && !drawn){
                     if (textStr.at(-1) == "."){
                         textStr = textStr.slice(0, -1);
                         continue;
                     }
-                    ctx.font = '12px sans-serif';
                     let measure = ctx.measureText(textStr);
                     let w = measure.width;
-                    let h = measure.emHeightAscent;
 
-                    if(w >= r2 * 2 || h >= r2 * 2) {
+                    if(w >= r2 * 1.8) {
                         textStr = textStr.slice(0, -1);
                         continue;
                     }
-                    
+
                     drawn = true;
-                    ctx.fillText(textStr, x - w / 2,  y + h / 2);
+                    ctx.fillText(textStr, x - w / 2, y);
                     ctx.restore();
 
                 }
@@ -460,12 +482,12 @@ export class NeuralNetwork {
         }
         if (displayErrorDigits){
             ctx.font = '12px sans-serif';
+            ctx.fillStyle = '#000000';
             let textStr = "ϵ: " + (Math.floor(this.error * 10**displayErrorDigits) / 10**displayErrorDigits).toString()
             let drawn = false;
             while (textStr.length > 0 && textStr != "-" && !drawn){
                 let measure = ctx.measureText(textStr);
                 let w = measure.width;
-                let h = measure.emHeightAscent;
                 if(w >= width) {
                     textStr = textStr.slice(0, -1);
                     continue;
@@ -478,18 +500,18 @@ export class NeuralNetwork {
         }
         if (displayMeanError){
             ctx.font = '12px sans-serif';
+            ctx.fillStyle = '#000000';
             let textStr = "μ: " + (Math.floor(this.meanError * 10**displayErrorDigits) / 10**displayErrorDigits).toString()
             let drawn = false;
             while (textStr.length > 0 && textStr != "-" && !drawn){
                 let measure = ctx.measureText(textStr);
                 let w = measure.width;
-                let h = measure.emHeightAscent;
                 if(w >= width) {
                     textStr = textStr.slice(0, -1);
                     continue;
                 }
                 drawn = true;
-                ctx.fillText(textStr, left + width / 2 - w / 2,  top + height - h);
+                ctx.fillText(textStr, left + width / 2 - w / 2,  top + height - 10);
                 ctx.restore();
             }
         }
@@ -621,6 +643,138 @@ export class NeuralNetwork {
         return ""
     }
 
+    private interpolateColor(color1: {r: number, g: number, b: number}, color2: {r: number, g: number, b: number}, weight: number): string {
+        // weight should be between 0 and 1
+        // weight = 0 means 100% color2, weight = 1 means 100% color1
+        const clampedWeight = Math.max(0, Math.min(1, weight));
+        const r = Math.round(color1.r * clampedWeight + color2.r * (1 - clampedWeight));
+        const g = Math.round(color1.g * clampedWeight + color2.g * (1 - clampedWeight));
+        const b = Math.round(color1.b * clampedWeight + color2.b * (1 - clampedWeight));
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    public interpolateColorPublic(color1: {r: number, g: number, b: number}, color2: {r: number, g: number, b: number}, weight: number): string {
+        return this.interpolateColor(color1, color2, weight);
+    }
+
+    private displayGrid2Input2Output(ctx, left: number, top: number, width: number, height: number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, rows: number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, color1: {r: number, g: number, b: number}, color2: {r: number, g: number, b: number}, getOutputs: (input1: number, input2: number) => number[]){
+        const headerOffset = showHeaders ? 1 : 0;
+        let spaceX = width / (columns + headerOffset);
+        let spaceY = height / (rows + headerOffset);
+
+        ctx.save();
+        ctx.font = `${Math.min(spaceX, spaceY) * 0.3}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#e0e0e0';
+        ctx.fillRect(left, top, width, height);
+
+        if (showHeaders) {
+            for (let i = 0; i < columns; i++){
+                let x = left + (i + 1) * spaceX;
+                let y = top;
+                let headerValue = axis1low + i * (axis1high - axis1low) / (columns - 1);
+
+                ctx.fillStyle = '#000000';
+                let text = headerValue.toFixed(2);
+                if (ctx.measureText(text).width > spaceX * 0.9) {
+                    text = headerValue.toFixed(1);
+                }
+                if (ctx.measureText(text).width > spaceX * 0.9) {
+                    text = headerValue.toFixed(0);
+                }
+                ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
+            }
+
+            for (let j = 0; j < rows; j++){
+                let x = left;
+                let y = top + (j + 1) * spaceY;
+                let headerValue = axis2low + j * (axis2high - axis2low) / (rows - 1);
+
+                ctx.fillStyle = '#e0e0e0';
+                ctx.fillRect(x, y, spaceX, spaceY);
+
+                ctx.fillStyle = '#000000';
+                let text = headerValue.toFixed(2);
+                if (ctx.measureText(text).width > spaceX * 0.9) {
+                    text = headerValue.toFixed(1);
+                }
+                if (ctx.measureText(text).width > spaceX * 0.9) {
+                    text = headerValue.toFixed(0);
+                }
+                ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
+            }
+
+            ctx.fillStyle = '#c0c0c0';
+            ctx.fillRect(left, top, spaceX, spaceY);
+        }
+
+        for (let i = 0; i < columns; i++){
+            for (let j = 0; j < rows; j++){
+                let x = left + (i + headerOffset) * spaceX;
+                let y = top + (j + headerOffset) * spaceY;
+                let input1 = axis1low + i * (axis1high - axis1low) / (columns - 1);
+                let input2 = axis2low + j * (axis2high - axis2low) / (rows - 1);
+
+                let outputs = getOutputs(input1, input2);
+                // outputs[0] is probability of class 1, outputs[1] is probability of class 2
+                // Use outputs[0] as the weight for interpolation
+                ctx.fillStyle = this.interpolateColor(color1, color2, outputs[0]);
+                ctx.fillRect(x, y, spaceX + (showText? -1: 1), spaceY + (showText? -1: 1));
+
+                if(showText){
+                    ctx.fillStyle = '#000000';
+                    let text = `${outputs[0].toFixed(decimals)}`;
+                    let textWidth = ctx.measureText(text).width;
+                    if (textWidth > spaceX * 0.9) {
+                        text = outputs[0].toFixed(Math.max(0, decimals - 1));
+                        textWidth = ctx.measureText(text).width;
+                        if (textWidth > spaceX * 0.9) {
+                            text = outputs[0].toFixed(0);
+                        }
+                    }
+                    ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
+                }
+            }
+        }
+        ctx.restore();
+
+    }
+
+    public display2Input2Output(ctx, left: number, top: number, width:number, height:number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, rows:number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, color1: {r: number, g: number, b: number}, color2: {r: number, g: number, b: number}){
+        this.displayGrid2Input2Output(ctx, left, top, width, height, axis1low, axis2low, axis1high, axis2high, rows, columns, decimals, showText, showHeaders, color1, color2,
+            (input1, input2) => {
+                let result = this.run([input1, input2]);
+                return [result.neurons[0].value, result.neurons[1].value];
+            }
+        );
+    }
+
+    public display2Input2OutputTest(ctx, left: number, top: number, width:number, height:number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, rows:number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, color1: {r: number, g: number, b: number}, color2: {r: number, g: number, b: number}, test: (inputs: number[]) => number[]){
+        this.displayGrid2Input2Output(ctx, left, top, width, height, axis1low, axis2low, axis1high, axis2high, rows, columns, decimals, showText, showHeaders, color1, color2,
+            (input1, input2) => test([input1, input2])
+        );
+    }
+
+    public display2Input2OutputError(ctx, left: number, top: number, width:number, height:number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, rows:number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, color1: {r: number, g: number, b: number}, color2: {r: number, g: number, b: number}, test: (inputs: number[]) => number[]){
+        // For error visualization, use white (no error) to red (high error) gradient
+        const errorColor1 = {r: 255, g: 255, b: 255}; // White for no error
+        const errorColor2 = {r: 255, g: 0, b: 0}; // Red for high error
+
+        this.displayGrid2Input2Output(ctx, left, top, width, height, axis1low, axis2low, axis1high, axis2high, rows, columns, decimals, showText, showHeaders, errorColor1, errorColor2,
+            (input1, input2) => {
+                let nnOutput = this.run([input1, input2]);
+                let testOutput = test([input1, input2]);
+                let error0 = Math.abs(nnOutput.neurons[0].value - testOutput[0]);
+                let error1 = Math.abs(nnOutput.neurons[1].value - testOutput[1]);
+                // Calculate total error (sum of both output errors)
+                let totalError = (error0 + error1) / 2; // Average error
+                // Return total error as both outputs for color interpolation
+                // This will create a gradient from white (0 error) to red (1 error)
+                return [totalError, 0]; // Using totalError as weight
+            }
+        );
+    }
 
 }
 export type ActivationFunction = 'sigmoid' | 'relu' | 'tanh';
