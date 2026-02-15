@@ -724,7 +724,7 @@ export class NeuralNetwork {
 
                 if(showText){
                     ctx.fillStyle = '#000000';
-                    let text = `${outputs[0].toFixed(decimals)}`;
+                    let text = outputs[0].toFixed(decimals) + ',' + outputs[0].toFixed(decimals);
                     let textWidth = ctx.measureText(text).width;
                     if (textWidth > spaceX * 0.9) {
                         text = outputs[0].toFixed(Math.max(0, decimals - 1));
