@@ -21,27 +21,67 @@
         .sidebar {
             width: 250px;
             background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
+            padding: 15px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 8px;
             overflow-y: auto;
         }
 
         .sidebar h1 {
-            font-size: 1.5rem;
-            margin-bottom: 10px;
+            font-size: 1.3rem;
+            margin-bottom: 5px;
             color: #667eea;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-row .control-group {
+            flex: 1;
+        }
+
+        .slider-group {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .slider-group input[type="range"] {
+            flex: 1;
+        }
+
+        .slider-group input[type="number"] {
+            width: 60px;
+            flex-shrink: 0;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        .button-row button {
+            flex: 1;
         }
 
         .sidebar select,
         .sidebar input,
         .sidebar button {
             width: 100%;
-            padding: 8px;
+            padding: 6px;
             border: 1px solid #ccc;
             border-radius: 4px;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .sidebar input[type="checkbox"] {
@@ -63,9 +103,9 @@
         }
 
         .sidebar label {
-            font-size: 12px;
+            font-size: 11px;
             color: #666;
-            margin-bottom: -10px;
+            font-weight: 500;
         }
 
         .canvasWrap {

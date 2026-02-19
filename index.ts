@@ -35,15 +35,21 @@ let testFunctionCat2in2out: TestFunctionTypeCat2in2Out = 'circle';
 type TestFunctionTypeCat2in2Out = 'circle' | 'square' | 'quadrants' | 'donut' | 'xor' | 'diagonal';
 let showTrainingData: ShowTrainingDataType = 'none';
 type ShowTrainingDataType = 'none' | 'output' | 'error' | 'test';
+let trainingMethod: TrainingMethod = 'genetic';
+type TrainingMethod = 'genetic' | 'backprop';
 let input1 = 0;
 let input2 = 0;
 let generationsPerDrawCycle = 1;
+let learningRate = 0.01; // Learning rate for backpropagation
+let momentum = 0.9; // Momentum for backpropagation
 
 // Colors for Cat2in2out visualization
 let color1 = {r: 100, g: 150, b: 255}; // Light blue for class 1
 let color2 = {r: 255, g: 100, b: 100}; // Light red for class 2
 
 ///////////////////////MAIN AREA//////////////////////////////////
+// Number of networks depends on training method: genetic needs 16, backprop needs 1
+// Default is genetic (16 networks)
 let numOfNeuralNetworks = 16;
 let inputSize = 2;
 let outputSize = 1;
@@ -66,24 +72,35 @@ function start() {
 }
 function update() {
     if (isStarted){
-        let mutation_num_of_weights = 100;
-        let mutation_weight_strength = 0.01;
-        let mutation_num_of_biases = 100;
-        let mutation_bias_strength = 0.01;
-
         let bestFitness = 0;
 
-        for (let i = 0; i < generationsPerDrawCycle; i++){
-            bestFitness = nnl.runGeneration(mutation_num_of_weights, mutation_weight_strength, mutation_num_of_biases, mutation_bias_strength);
-            if(bestFitness === lastError){
-                mutation_bias_strength /= 1.001;
-                mutation_weight_strength /= 1.001;
-            } else {
-                mutation_bias_strength *= 1.001;
-                mutation_weight_strength *= 1.001;
+        if (trainingMethod === 'genetic') {
+            // Genetic algorithm training
+            let mutation_num_of_weights = 100;
+            let mutation_weight_strength = 0.01;
+            let mutation_num_of_biases = 100;
+            let mutation_bias_strength = 0.01;
+
+            for (let i = 0; i < generationsPerDrawCycle; i++){
+                bestFitness = nnl.runGeneration(mutation_num_of_weights, mutation_weight_strength, mutation_num_of_biases, mutation_bias_strength);
+                if(bestFitness === lastError){
+                    mutation_bias_strength /= 1.001;
+                    mutation_weight_strength /= 1.001;
+                } else {
+                    mutation_bias_strength *= 1.001;
+                    mutation_weight_strength *= 1.001;
+                }
             }
-        
+        } else if (trainingMethod === 'backprop') {
+            // Update learning rate and momentum for all networks
+            nnl.setLearningRate(learningRate);
+            nnl.setMomentum(momentum);
+
+            for (let i = 0; i < generationsPerDrawCycle; i++){
+                bestFitness = nnl.trainBackpropagation(100); // 1 epoch per generation
+            }
         }
+
         lastError = bestFitness;
     }
     
@@ -201,8 +218,8 @@ function update() {
                     let testOutput = test(inputs);
                     let error0 = Math.abs(nnOutput.neurons[0].value - testOutput[0]);
                     let error1 = Math.abs(nnOutput.neurons[1].value - testOutput[1]);
-                    let totalError = (error0 + error1) / 2; // Average error
-                    return [totalError, 0]; // Using totalError as weight for white-to-red gradient
+                    let totalError = (error0 + error1) / 2; 
+                    return [totalError, 0]; 
                 }, ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, errorColor1, errorColor2);
                 break;
             case "output":
@@ -311,7 +328,6 @@ function networkChange(){
 
     switch (networkFormat){
         case 'Val2in1out':
-            numOfNeuralNetworks = 16;
             inputSize = 2;
             outputSize = 1;
             hiddenLayerSizes = [7, 10, 20, 20, 10, 7];
@@ -330,7 +346,6 @@ function networkChange(){
             testFunctionDropdown.value = testFunctionVal2in1out;
             break;
         case 'Cat2in2out':
-            numOfNeuralNetworks = 16;
             inputSize = 2;
             outputSize = 2;
             hiddenLayerSizes = [7, 10, 20, 20, 10, 7];
@@ -349,6 +364,9 @@ function networkChange(){
             testFunctionDropdown.value = testFunctionCat2in2out;
             break;
     }
+
+    // Set number of networks based on training method
+    numOfNeuralNetworks = trainingMethod === 'backprop' ? 1 : 16;
 
     nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
     createTrials();
@@ -374,6 +392,8 @@ function testFunctionChange(){
 (window as any).testFunctionChange = testFunctionChange;
 function inputChange(){
     generationsPerDrawCycle = parseFloat((document.getElementById('generationsPerDrawCycle') as HTMLInputElement).value);
+    learningRate = parseFloat((document.getElementById('learningRate') as HTMLInputElement).value);
+    momentum = parseFloat((document.getElementById('momentum') as HTMLInputElement).value);
     let i1 = parseFloat((document.getElementById('input1') as HTMLInputElement).value);
     input1 = Number(isNaN(i1)? 0: i1);
     let i2 = parseFloat((document.getElementById('input2') as HTMLInputElement).value);
@@ -381,15 +401,27 @@ function inputChange(){
     (document.getElementById('input1Slider') as HTMLInputElement).value = input1.toString();
     (document.getElementById('input2Slider') as HTMLInputElement).value = input2.toString();
     (document.getElementById('generationsPerDrawCycleSlider') as HTMLInputElement).value = generationsPerDrawCycle.toString();
+    (document.getElementById('learningRateSlider') as HTMLInputElement).value = learningRate.toString();
+    (document.getElementById('momentumSlider') as HTMLInputElement).value = momentum.toString();
+    // Update display spans
+    (document.getElementById('learningRateDisplay') as HTMLSpanElement).textContent = learningRate.toFixed(3);
+    (document.getElementById('momentumDisplay') as HTMLSpanElement).textContent = momentum.toFixed(2);
 }
 (window as any).inputChange = inputChange;
 function inputSliderChange(){
     generationsPerDrawCycle = parseFloat((document.getElementById('generationsPerDrawCycleSlider') as HTMLInputElement).value);
+    learningRate = parseFloat((document.getElementById('learningRateSlider') as HTMLInputElement).value);
+    momentum = parseFloat((document.getElementById('momentumSlider') as HTMLInputElement).value);
     input1 = parseFloat((document.getElementById('input1Slider') as HTMLInputElement).value);
     input2 = parseFloat((document.getElementById('input2Slider') as HTMLInputElement).value);
     (document.getElementById('input1') as HTMLInputElement).value = input1.toString();
     (document.getElementById('input2') as HTMLInputElement).value = input2.toString();
     (document.getElementById('generationsPerDrawCycle') as HTMLInputElement).value = generationsPerDrawCycle.toString();
+    (document.getElementById('learningRate') as HTMLInputElement).value = learningRate.toString();
+    (document.getElementById('momentum') as HTMLInputElement).value = momentum.toString();
+    // Update display spans
+    (document.getElementById('learningRateDisplay') as HTMLSpanElement).textContent = learningRate.toFixed(3);
+    (document.getElementById('momentumDisplay') as HTMLSpanElement).textContent = momentum.toFixed(2);
 }
 (window as any).inputSliderChange = inputSliderChange;
 function reset(){
@@ -401,4 +433,33 @@ function showTrainingDataChange(){
     showTrainingData = (document.getElementById('showTrainingData') as HTMLSelectElement).value as ShowTrainingDataType;
 }
 (window as any).showTrainingDataChange = showTrainingDataChange;
+function trainingMethodChange(){
+    const newTrainingMethod = (document.getElementById('trainingMethod') as HTMLSelectElement).value as TrainingMethod;
+
+    // Adjust number of networks based on training method
+    if (newTrainingMethod === 'genetic' && trainingMethod === 'backprop') {
+        // Switching from backprop (1 network) to genetic (16 networks)
+        // Clone the best network to create a population
+        const bestNetwork = nnl.neuralNetworks[0].clone();
+        const newNetworks = [];
+        for (let i = 0; i < 16; i++) {
+            newNetworks.push(bestNetwork.clone());
+        }
+        nnl.neuralNetworks = newNetworks;
+        nnl.numOfNeuralNetworks = 16;
+        numOfNeuralNetworks = 16; // Update global variable
+    } else if (newTrainingMethod === 'backprop' && trainingMethod === 'genetic') {
+        // Switching from genetic (16 networks) to backprop (1 network)
+        // Keep only the best network
+        nnl.resetError();
+        nnl.testErrorTrials(nnl.trialInputsList, nnl.trialOutputsList, nnl.trialPower);
+        nnl.sort();
+        nnl.neuralNetworks = [nnl.neuralNetworks[0]];
+        nnl.numOfNeuralNetworks = 1;
+        numOfNeuralNetworks = 1; // Update global variable
+    }
+
+    trainingMethod = newTrainingMethod;
+}
+(window as any).trainingMethodChange = trainingMethodChange;
 ///////////////////////UI AREA////////////////////////////////////

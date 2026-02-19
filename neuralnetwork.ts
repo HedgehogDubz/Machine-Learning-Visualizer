@@ -196,6 +196,51 @@ export class NeuralNetworkList {
         this.reproduceSurvivors(numOfWeights, weightStrength, numOfBiases, biasesStrength);
         return bestError;
     }
+
+    public setLearningRate(learningRate: number) {
+        this.neuralNetworks.forEach(nn => {
+            nn.learningRate = learningRate;
+        });
+    }
+
+    public setMomentum(momentum: number) {
+        this.neuralNetworks.forEach(nn => {
+            nn.momentum = momentum;
+        });
+    }
+
+    public trainBackpropagation(epochs: number = 1): number {
+        this.generation++;
+
+        this.resetError();
+        this.testErrorTrials(this.trialInputsList, this.trialOutputsList, this.trialPower);
+        this.sort();
+
+        const errorBefore = this.neuralNetworks[0].error;
+
+        const backup = this.neuralNetworks[0].clone();
+
+        for (let epoch = 0; epoch < epochs; epoch++) {
+            this.neuralNetworks[0].trainBatch(this.trialInputsList, this.trialOutputsList);
+        }
+
+        this.neuralNetworks[0].error = 0;
+        this.neuralNetworks[0].meanError = 0;
+        for (let i = 0; i < this.trialInputsList.length; i++) {
+            this.neuralNetworks[0].run(this.trialInputsList[i]);
+            this.neuralNetworks[0].testError(this.trialOutputsList[i], true, this.trialPower);
+        }
+        this.neuralNetworks[0].error = (this.neuralNetworks[0].error / this.trialInputsList.length) ** (1 / this.trialPower);
+        this.neuralNetworks[0].meanError /= this.trialInputsList.length;
+
+        if (this.neuralNetworks[0].error > errorBefore) {
+            this.neuralNetworks[0] = backup;
+            return errorBefore; 
+        }
+
+        return this.neuralNetworks[0].error;
+    }
+
     public sort(){
         this.neuralNetworks.sort((a, b) => a.error - b.error);
     }
@@ -240,6 +285,10 @@ export class NeuralNetwork {
     layers: Layer[] = [];
     activationFunction: ActivationFunction = 'tanh';
     outputActivationFunction: ActivationFunction = 'tanh';
+
+    // For backpropagation
+    learningRate: number = 0.01; // Default learning rate (adjustable via UI)
+    momentum: number = 0.9; // Default momentum (adjustable via UI)
     constructor(inputSize: number, hiddenLayerSizes: number[], outputSize: number, activationFunction: ActivationFunction, outputActivationFunction:ActivationFunction) {
         this.numOfLayers = hiddenLayerSizes.length + 2;
         this.inputSize = inputSize
@@ -312,8 +361,122 @@ export class NeuralNetwork {
             this.meanError = meanSum;
         }
     }
-    public backPropogate(outputs: number[]){
-        
+    // Backpropagation: calculate gradients for all weights and biases
+    public backPropogate(targetOutputs: number[], resetGradients: boolean = true){
+        if (targetOutputs.length !== this.outputSize) {
+            throw new Error('Wrong number of target outputs');
+        }
+
+        // Reset all gradients to 0 (only if specified)
+        if (resetGradients) {
+            for (let l = 1; l < this.numOfLayers; l++) {
+                for (let n = 0; n < this.layers[l].neurons.length; n++) {
+                    this.layers[l].neurons[n].gradient = 0;
+                    for (let w = 0; w < this.layers[l].neurons[n].weights.length; w++) {
+                        this.layers[l].neurons[n].weights[w].gradient = 0;
+                    }
+                }
+            }
+        }
+
+        // Calculate output layer gradients
+        const outputLayer = this.layers[this.numOfLayers - 1];
+        for (let i = 0; i < outputLayer.neurons.length; i++) {
+            const neuron = outputLayer.neurons[i];
+            // Gradient of loss (MSE) with respect to output: 2 * (output - target)
+            const error = neuron.value - targetOutputs[i];
+            // Chain rule: dL/dOutput * dOutput/dPreActivation
+            neuron.gradient = 2 * error * neuron.activationDerivative();
+        }
+
+        // Backpropagate through hidden layers
+        for (let l = this.numOfLayers - 2; l >= 1; l--) {
+            const currentLayer = this.layers[l];
+            const nextLayer = this.layers[l + 1];
+
+            for (let i = 0; i < currentLayer.neurons.length; i++) {
+                const neuron = currentLayer.neurons[i];
+                let sum = 0;
+
+                // Sum up gradients from all neurons in next layer that this neuron connects to
+                for (let j = 0; j < nextLayer.neurons.length; j++) {
+                    const nextNeuron = nextLayer.neurons[j];
+                    // Find the weight connecting this neuron to nextNeuron
+                    for (let w = 0; w < nextNeuron.weights.length; w++) {
+                        const weight = nextNeuron.weights[w];
+                        if (weight.to.layer === l && weight.to.index === i) {
+                            sum += nextNeuron.gradient * weight.value;
+                            // Also accumulate weight gradient
+                            weight.gradient += nextNeuron.gradient * neuron.value;
+                        }
+                    }
+                }
+
+                // Apply activation derivative
+                neuron.gradient = sum * neuron.activationDerivative();
+            }
+        }
+    }
+
+    // Apply gradients to update weights and biases with momentum
+    public applyGradients() {
+        for (let l = 1; l < this.numOfLayers; l++) {
+            for (let n = 0; n < this.layers[l].neurons.length; n++) {
+                const neuron = this.layers[l].neurons[n];
+
+                // Update bias with momentum
+                neuron.biasVelocity = this.momentum * neuron.biasVelocity - this.learningRate * neuron.gradient;
+                neuron.bias += neuron.biasVelocity;
+
+                // Clamp bias if needed
+                if (this.clampBiases) {
+                    neuron.bias = Math.max(-1, Math.min(1, neuron.bias));
+                }
+
+                // Update weights with momentum
+                for (let w = 0; w < neuron.weights.length; w++) {
+                    const weight = neuron.weights[w];
+                    weight.velocity = this.momentum * weight.velocity - this.learningRate * weight.gradient;
+                    weight.value += weight.velocity;
+
+                    // Clamp weight if needed
+                    if (this.clampWeights) {
+                        weight.value = Math.max(-1, Math.min(1, weight.value));
+                    }
+                }
+            }
+        }
+    }
+
+    // Train on a batch of data using backpropagation
+    public trainBatch(inputs: number[][], targetOutputs: number[][]) {
+        if (inputs.length !== targetOutputs.length) {
+            throw new Error('Inputs and target outputs must have same length');
+        }
+
+        // Batch learning: accumulate gradients across all samples, then apply once
+        for (let i = 0; i < inputs.length; i++) {
+            // Forward pass
+            this.run(inputs[i]);
+
+            // Backward pass (reset gradients only on first sample)
+            this.backPropogate(targetOutputs[i], i === 0);
+        }
+
+        // Normalize gradients by batch size
+        const batchSize = inputs.length;
+        for (let l = 1; l < this.numOfLayers; l++) {
+            for (let n = 0; n < this.layers[l].neurons.length; n++) {
+                const neuron = this.layers[l].neurons[n];
+                neuron.gradient /= batchSize;
+                for (let w = 0; w < neuron.weights.length; w++) {
+                    neuron.weights[w].gradient /= batchSize;
+                }
+            }
+        }
+
+        // Apply accumulated and normalized gradients
+        this.applyGradients();
     }
     public getNodeValue(np: NeuronPosition): number {
         return this.layers[np.layer].neurons[np.index].value;
@@ -346,9 +509,15 @@ export class NeuralNetwork {
 
                 targetNeuron.value = sourceNeuron.value;
                 targetNeuron.bias = sourceNeuron.bias;
+                // Copy momentum velocity for bias (needed for elitist rollback)
+                targetNeuron.biasVelocity = sourceNeuron.biasVelocity;
+                // Don't copy gradient or preActivation - these are temporary computation values
 
                 for (let w = 0; w < sourceNeuron.weights.length; w++) {
                     targetNeuron.weights[w].value = sourceNeuron.weights[w].value;
+                    // Copy momentum velocity for weight (needed for elitist rollback)
+                    targetNeuron.weights[w].velocity = sourceNeuron.weights[w].velocity;
+                    // Don't copy gradient - it's a temporary computation value
                 }
             }
         }
@@ -792,6 +961,11 @@ class Neuron {
     weights: Weight[];
     bias: number;
     activationFunction: ActivationFunction;
+    // For backpropagation
+    gradient: number = 0; // Gradient of the loss with respect to this neuron's output
+    preActivation: number = 0; // Value before activation function
+    biasVelocity: number = 0; // Momentum for bias
+
     constructor(weights: Weight[], bias: number, activationFunction: ActivationFunction) {
         this.value = 0;
         this.weights = weights;
@@ -799,20 +973,41 @@ class Neuron {
         this.activationFunction = activationFunction;
     }
     public activate(){
+        this.preActivation = this.value; // Store pre-activation value for backprop
         switch (this.activationFunction){
             case "relu":
                 this.value = (this.value <= 0)? 0: this.value;
+                break;
             case "sigmoid":
                 this.value = 1 / (1 + Math.pow(Math.E, -this.value));
+                break;
             case "tanh":
                this.value = Math.tanh(this.value);
-
+               break;
         }
+    }
+
+    // Calculate derivative of activation function
+    public activationDerivative(): number {
+        switch (this.activationFunction){
+            case "relu":
+                return this.preActivation > 0 ? 1 : 0;
+            case "sigmoid":
+                // sigmoid'(x) = sigmoid(x) * (1 - sigmoid(x))
+                return this.value * (1 - this.value);
+            case "tanh":
+                // tanh'(x) = 1 - tanh(x)^2
+                return 1 - this.value * this.value;
+        }
+        return 0;
     }
 }
 class Weight {
     value: number;
     to: NeuronPosition;
+    gradient: number = 0; // Gradient for backpropagation
+    velocity: number = 0; // Momentum for weight
+
     constructor(value: number, to: NeuronPosition) {
         this.value = value;
         this.to = to;

@@ -12,57 +12,108 @@
         <div class="sidebar">
             <h1>Controls</h1>
 
-            <label>Neural Network Format</label>
-            <select id="networkFormat" onchange="networkChange()">
-                <option value="Val2in1out">Value: 2 Input, 1 Output</option>
-                <option value="Cat2in2out">Categorize: 2 Input, 2 Output</option>
-            </select>
-            <label>Data Format</label>
-            <select id="showDataFormat" onchange="showDataChange()">
-                <option value="none">None</option>
-                <option value="output" selected>Output</option>
-                <option value="error">Error</option>
-                <option value="test">Test</option>
-            </select>
+            <div class="control-group">
+                <label>Network Format</label>
+                <select id="networkFormat" onchange="networkChange()">
+                    <option value="Val2in1out">Value: 2in1out</option>
+                    <option value="Cat2in2out">Cat: 2in2out</option>
+                </select>
+            </div>
 
-            <label>Show Training Data</label>
-            <select id="showTrainingData" onchange="showTrainingDataChange()">
-                <option value="none">None</option>
-                <option value="output">Output</option>
-                <option value="error">Error</option>
-                <option value="test">Test</option>
-            </select>
+            <div class="control-row">
+                <div class="control-group">
+                    <label>Data Format</label>
+                    <select id="showDataFormat" onchange="showDataChange()">
+                        <option value="none">None</option>
+                        <option value="output" selected>Output</option>
+                        <option value="error">Error</option>
+                        <option value="test">Test</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Training Data</label>
+                    <select id="showTrainingData" onchange="showTrainingDataChange()">
+                        <option value="none">None</option>
+                        <option value="output">Output</option>
+                        <option value="error">Error</option>
+                        <option value="test">Test</option>
+                    </select>
+                </div>
+            </div>
 
-            <label>Network View</label>
-            <select id="showNetworkFormat" onchange="showNetworkChange()">
-                <option value="best">Best</option>
-                <option value="all">All</option>
-            </select>
+            <div class="control-row">
+                <div class="control-group">
+                    <label>Network View</label>
+                    <select id="showNetworkFormat" onchange="showNetworkChange()">
+                        <option value="best">Best</option>
+                        <option value="all">All</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Test Function</label>
+                    <select id="testFunction" onchange="testFunctionChange()">
+                        <option value="wave">Wave</option>
+                        <option value="radial">Radial</option>
+                        <option value="xy">XY</option>
+                        <option value="checkerboard">Checker</option>
+                        <option value="spiral">Spiral</option>
+                        <option value="diagonal">Diagonal</option>
+                    </select>
+                </div>
+            </div>
 
-            <label>Test Function</label>
-            <select id="testFunction" onchange="testFunctionChange()">
-                <option value="wave">Wave</option>
-                <option value="radial">Radial</option>
-                <option value="xy">XY Product</option>
-                <option value="checkerboard">Checkerboard</option>
-                <option value="spiral">Spiral</option>
-                <option value="diagonal">Diagonal</option>
-            </select>
+            <div class="control-group">
+                <label>Training Method</label>
+                <select id="trainingMethod" onchange="trainingMethodChange()">
+                    <option value="genetic">Genetic</option>
+                    <option value="backprop">Backprop</option>
+                </select>
+            </div>
 
-            <label>Generations per Draw Cycle</label>
-            <input type="range" id="generationsPerDrawCycleSlider" min="1" max="100" step="1" value="1" oninput="inputSliderChange()">
-            <input type="number" id="generationsPerDrawCycle" step="1" value="1" onchange="inputChange()">
+            <div class="control-group">
+                <label>Learning Rate: <span id="learningRateDisplay">0.01</span></label>
+                <div class="slider-group">
+                    <input type="range" id="learningRateSlider" min="0.001" max="0.5" step="0.001" value="0.01" oninput="inputSliderChange()">
+                    <input type="number" id="learningRate" step="0.001" value="0.01" onchange="inputChange()">
+                </div>
+            </div>
 
-            <label>Input 1</label>
-            <input type="range" id="input1Slider" min="-1" max="1" step="0.01" value="0" oninput="inputSliderChange()">
-            <input type="number" id="input1" step="0.01" value="0" onchange="inputChange()">
+            <div class="control-group">
+                <label>Momentum: <span id="momentumDisplay">0.9</span></label>
+                <div class="slider-group">
+                    <input type="range" id="momentumSlider" min="0" max="0.99" step="0.01" value="0.9" oninput="inputSliderChange()">
+                    <input type="number" id="momentum" step="0.01" value="0.9" onchange="inputChange()">
+                </div>
+            </div>
 
-            <label>Input 2</label>
-            <input type="range" id="input2Slider" min="-1" max="1" step="0.01" value="0" oninput="inputSliderChange()">
-            <input type="number" id="input2" step="0.01" value="0" onchange="inputChange()">
+            <div class="control-group">
+                <label>Gens/Draw</label>
+                <div class="slider-group">
+                    <input type="range" id="generationsPerDrawCycleSlider" min="1" max="100" step="1" value="1" oninput="inputSliderChange()">
+                    <input type="number" id="generationsPerDrawCycle" step="1" value="1" onchange="inputChange()">
+                </div>
+            </div>
 
-            <button id="startButton" onclick="startToggle()"><span id="startToggleText">Start</span></button>
-            <button id="resetButton" onclick="reset()">Reset</button>
+            <div class="control-group">
+                <label>Input 1</label>
+                <div class="slider-group">
+                    <input type="range" id="input1Slider" min="-1" max="1" step="0.01" value="0" oninput="inputSliderChange()">
+                    <input type="number" id="input1" step="0.01" value="0" onchange="inputChange()">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Input 2</label>
+                <div class="slider-group">
+                    <input type="range" id="input2Slider" min="-1" max="1" step="0.01" value="0" oninput="inputSliderChange()">
+                    <input type="number" id="input2" step="0.01" value="0" onchange="inputChange()">
+                </div>
+            </div>
+
+            <div class="button-row">
+                <button id="startButton" onclick="startToggle()"><span id="startToggleText">Start</span></button>
+                <button id="resetButton" onclick="reset()">Reset</button>
+            </div>
         </div>
 
         <div class="canvasWrap">
