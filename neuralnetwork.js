@@ -629,14 +629,16 @@ export class NeuralNetwork {
                 ctx.fillRect(x, y, spaceX + (showText ? -1 : 1), spaceY + (showText ? -1 : 1));
                 if (showText) {
                     ctx.fillStyle = '#000000';
-                    let text = `${outputs[0].toFixed(decimals)}`;
+                    let text = outputs[0].toFixed(decimals) + ',' + outputs[1].toFixed(decimals);
                     let textWidth = ctx.measureText(text).width;
-                    if (textWidth > spaceX * 0.9) {
-                        text = outputs[0].toFixed(Math.max(0, decimals - 1));
+                    let shrink = 0;
+                    while (textWidth > spaceX * 0.9 && shrink < decimals) {
+                        text = outputs[0].toFixed(decimals - shrink) + ',' + outputs[1].toFixed(decimals - shrink);
                         textWidth = ctx.measureText(text).width;
                         if (textWidth > spaceX * 0.9) {
-                            text = outputs[0].toFixed(0);
+                            text = outputs[0].toFixed(decimals - shrink);
                         }
+                        shrink++;
                     }
                     ctx.fillText(text, x + spaceX / 2, y + spaceY / 2);
                 }
