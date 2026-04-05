@@ -6,11 +6,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "devDependencies": {
+    "esbuild": "^0.27.5",
     "http-server": "^14.1.1"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc",
+    "build": "tsc && esbuild index.js --bundle --outfile=dist/bundle.js --format=iife",
     "serve": "http-server -p 8080 -o",
     "dev": "npm run build && npm run serve"
   },

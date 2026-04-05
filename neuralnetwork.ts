@@ -6,12 +6,17 @@ export class NeuralNetworkList {
     generation: number = 0;
     inputSize: number;
     outputSize: number;
-    
+    trainRMSE: number = 0;
+    trainMAE: number = 0;
+    testRMSE: number = 0;
+    testMAE: number = 0;
 
     trialInputsList: number[][] = [];
     trialOutputsList: number[][] = [];
     trialPower: number = 2;
     trainingData = [];
+    testInputs: number[][] = [];
+    testFn: ((inputs: number[]) => number[]) | null = null;
     constructor(numOfNeuralNetworks:number, inputSize: number, hiddenLayerSizes: number[], outputSize: number, activationFunction: ActivationFunction, outputActivationFunction:ActivationFunction){
         this.numOfNeuralNetworks = numOfNeuralNetworks;
         for(let i = 0; i < numOfNeuralNetworks; i++){
@@ -30,27 +35,61 @@ export class NeuralNetworkList {
         this.neuralNetworks.forEach(nn => nn.mutate(numOfWeights,weightStrength, numOfBiases, biasesStrength));
         return this;
     }
-    public draw(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, height: number, rowSize: number, displayHeaderHeight?:number, displayHeader?:boolean, displayErrorDigits?: number, displayMeanError?: boolean){
-        let xSpace = width / rowSize;
-        let ySpace = (height - (displayHeader ? displayHeaderHeight : 0)) / Math.ceil(this.neuralNetworks.length / rowSize);
-        let col = 0;
-        let row = 0;
+    static MIN_CELL_HEIGHT = 200;
 
-        //draw header
+    public getContentHeight(rowSize: number, displayHeaderHeight: number, displayHeader: boolean, panelHeight: number): number {
+        const headerH = displayHeader ? displayHeaderHeight : 0;
+        const availableHeight = panelHeight - headerH;
+        const numRows = Math.ceil(this.neuralNetworks.length / rowSize);
+        const cellHeight = Math.max(NeuralNetworkList.MIN_CELL_HEIGHT, availableHeight / numRows);
+        return headerH + numRows * cellHeight;
+    }
+
+    public draw(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, height: number, rowSize: number, displayHeaderHeight?:number, displayHeader?:boolean, displayErrorDigits?: number, displayMeanError?: boolean, scrollY: number = 0){
+        let xSpace = width / rowSize;
+        const headerH = displayHeader ? displayHeaderHeight! : 0;
+        const availableHeight = height - headerH;
+        const numRows = Math.ceil(this.neuralNetworks.length / rowSize);
+        let ySpace = Math.max(NeuralNetworkList.MIN_CELL_HEIGHT, availableHeight / numRows);
+
+        ctx.save();
+
+        // Clip to the panel area
+        ctx.beginPath();
+        ctx.rect(left, top, width, height);
+        ctx.clip();
+
+        //draw header (fixed, not scrolled)
         if (displayHeader){
-            this.drawHeader(ctx, left, top, width, (displayHeader ? displayHeaderHeight : 0));
+            this.drawHeader(ctx, left, top, width, headerH);
         }
 
-
-        //draw networks
+        //draw networks (scrolled)
+        let col = 0;
+        let row = 0;
         this.neuralNetworks.forEach((nn: NeuralNetwork) => {
-            nn.draw(ctx, left + xSpace * col, top + ySpace * row + (displayHeader? displayHeaderHeight: 0), xSpace, ySpace, displayErrorDigits, displayMeanError);
+            const y = top + ySpace * row + headerH - scrollY;
+            // Skip if entirely outside visible area
+            if (y + ySpace >= top + headerH && y < top + height) {
+                nn.draw(ctx, left + xSpace * col, y, xSpace, ySpace, displayErrorDigits, displayMeanError);
+            }
             col++;
             if(col >= rowSize){
                 col = 0;
                 row++;
             }
         });
+
+        // Draw scroll indicator if content overflows
+        const totalContentHeight = numRows * ySpace;
+        if (totalContentHeight > availableHeight) {
+            const scrollBarHeight = Math.max(20, availableHeight * (availableHeight / totalContentHeight));
+            const scrollBarY = top + headerH + (scrollY / (totalContentHeight - availableHeight)) * (availableHeight - scrollBarHeight);
+            ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+            ctx.fillRect(left + width - 6, scrollBarY, 4, scrollBarHeight);
+        }
+
+        ctx.restore();
     }
     public drawBest(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, height: number, rowSize: number, displayHeaderHeight?:number, displayHeader?:boolean, displayErrorDigits?: number, displayMeanError?: boolean){
         this.sort();
@@ -61,31 +100,77 @@ export class NeuralNetworkList {
 
         this.neuralNetworks[0].draw(ctx, left, top + (displayHeader? 20: 0), width, height - (displayHeader? 20: 0), displayErrorDigits, displayMeanError);
     }
+    public computeTestErr(predict: (inputs: number[]) => number[]) {
+        if (!this.testInputs.length || !this.testFn) { this.testRMSE = 0; this.testMAE = 0; return; }
+        let sqSum = 0;
+        let absSum = 0;
+        for (let i = 0; i < this.testInputs.length; i++) {
+            const pred = predict(this.testInputs[i]);
+            const expected = this.testFn(this.testInputs[i]);
+            for (let j = 0; j < pred.length; j++) {
+                const diff = Math.abs(pred[j] - expected[j]);
+                sqSum += diff ** 2;
+                absSum += diff;
+            }
+        }
+        this.testRMSE = Math.sqrt(sqSum / this.testInputs.length);
+        this.testMAE = absSum / this.testInputs.length;
+    }
+
     public drawHeader(ctx, left, top , width, height){
         ctx.save();
             ctx.fillStyle = "#e0e0e0"
             ctx.fillRect(left, top, width, height);
-            let textStr = "Generation: " + this.generation;
             ctx.font = '12px sans-serif';
             ctx.textBaseline = 'middle';
-            let measure = ctx.measureText(textStr);
-            let w = measure.width;
-
-            if(w >= width - 10) {
-                textStr = "Gen: " + this.generation
-                ctx.font = '12px sans-serif';
-                measure = ctx.measureText(textStr);
-                w = measure.width;
-
-                if(w >= width - 10) {
-                    textStr = textStr.slice(0, -1);
-                }
-            }
             ctx.fillStyle = "#000000"
-            ctx.fillText(textStr, left + 5, top + height / 2);
+            const text = `Gen: ${this.generation} | Train ϵ RMSE: ${this.trainRMSE.toFixed(4)} μ MAE: ${this.trainMAE.toFixed(4)} | Test ϵ RMSE: ${this.testRMSE.toFixed(4)} μ MAE: ${this.testMAE.toFixed(4)}`;
+            ctx.fillText(text, left + 5, top + height / 2);
 
             ctx.restore();
 
+    }
+
+    // Draw XGBoost ensemble as a grid of small networks
+    public drawXGBoostEnsemble(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, height: number, displayHeaderHeight: number){
+        ctx.save();
+
+        // Draw header
+        ctx.fillStyle = "#e0e0e0";
+        ctx.fillRect(left, top, width, displayHeaderHeight);
+        ctx.fillStyle = "#000000";
+        ctx.font = '12px sans-serif';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`Gen: ${this.generation} | Ensemble: ${this.neuralNetworks.length} networks`, left + 5, top + displayHeaderHeight / 2);
+
+        // Calculate grid layout
+        const contentHeight = height - displayHeaderHeight;
+        const cols = Math.min(4, this.neuralNetworks.length);
+        const rows = Math.ceil(this.neuralNetworks.length / cols);
+        const cellWidth = width / cols;
+        const cellHeight = contentHeight / rows;
+
+        // Draw each network in the ensemble
+        for (let i = 0; i < this.neuralNetworks.length; i++) {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const x = left + col * cellWidth;
+            const y = top + displayHeaderHeight + row * cellHeight;
+
+            // Draw network background
+            ctx.fillStyle = i === 0 ? "#f0f0ff" : "#f8f8f8";
+            ctx.fillRect(x + 2, y + 2, cellWidth - 4, cellHeight - 4);
+
+            // Draw network index
+            ctx.fillStyle = "#000000";
+            ctx.font = '10px sans-serif';
+            ctx.fillText(`#${i}${i === 0 ? ' (base)' : ''}`, x + 5, y + 12);
+
+            // Draw mini network visualization
+            this.neuralNetworks[i].draw(ctx, x + 5, y + 20, cellWidth - 10, cellHeight - 25);
+        }
+
+        ctx.restore();
     }
     public testError(outputs: number[], power?:number): number{
 
@@ -178,13 +263,14 @@ export class NeuralNetworkList {
         // Keep all survivors unchanged - they earned their survival!
         // Clone them and mutate only the clones to fill the population
         let index = 0;
-        while (this.neuralNetworks.length < this.numOfNeuralNetworks){
+        while (this.neuralNetworks.length < this.numOfNeuralNetworks - 1){
             let nn = this.neuralNetworks[index].clone()
             nn.mutate(numOfWeights, weightStrength, numOfBiases, biasesStrength);
             this.neuralNetworks.push(nn);
             index++;
             if(index >= numOfSurvivors){index = 0;}
         }
+        this.neuralNetworks.push(new NeuralNetwork(this.neuralNetworks[0].inputSize, this.neuralNetworks[0].hiddenLayerSizes, this.neuralNetworks[0].outputSize, this.neuralNetworks[0].activationFunction, this.neuralNetworks[0].outputActivationFunction));
     }
     public runGeneration(numOfWeights:number, weightStrength:number, numOfBiases:number, biasesStrength:number): number {
         this.generation++;
@@ -192,6 +278,8 @@ export class NeuralNetworkList {
         this.testErrorTrials(this.trialInputsList, this.trialOutputsList, this.trialPower);
         this.sort();
         const bestError = this.neuralNetworks[0].error;
+        this.trainRMSE = bestError;
+        this.trainMAE = this.neuralNetworks[0].meanError;
         this.killLowestError(Math.floor(this.numOfNeuralNetworks / 2));
         this.reproduceSurvivors(numOfWeights, weightStrength, numOfBiases, biasesStrength);
         return bestError;
@@ -235,10 +323,103 @@ export class NeuralNetworkList {
 
         if (this.neuralNetworks[0].error > errorBefore) {
             this.neuralNetworks[0] = backup;
-            return errorBefore; 
+            this.trainRMSE = errorBefore;
+            this.trainMAE = backup.meanError;
+            return errorBefore;
         }
 
+        this.trainRMSE = this.neuralNetworks[0].error;
+        this.trainMAE = this.neuralNetworks[0].meanError;
         return this.neuralNetworks[0].error;
+    }
+
+    // XGBoost-style training: Add one new network to ensemble, trained on residuals
+    public trainXGBoost(epochs: number = 10, shrinkage: number = 0.1): number {
+        this.generation++;
+
+        // Calculate residuals (errors of current ensemble)
+        const residuals: number[][] = [];
+
+        for (let i = 0; i < this.trialInputsList.length; i++) {
+            const ensemblePred = this.runEnsemble(this.trialInputsList[i]);
+            const target = this.trialOutputsList[i];
+
+            // Residual = what the ensemble got wrong
+            const residual = target.map((t, idx) => t - ensemblePred[idx]);
+            residuals.push(residual);
+        }
+
+        // Create a new network (clone the architecture of the first one)
+        const newNetwork = this.neuralNetworks[0].clone();
+        newNetwork.randomize(); // Randomize weights for the new network
+
+        // Train the new network to predict the residuals
+        for (let epoch = 0; epoch < epochs; epoch++) {
+            newNetwork.trainBatch(this.trialInputsList, residuals);
+        }
+
+        // Apply shrinkage to the new network (prevents overfitting)
+        newNetwork.shrinkWeights(shrinkage);
+
+        // Add the new network to the ensemble
+        this.neuralNetworks.push(newNetwork);
+        this.numOfNeuralNetworks = this.neuralNetworks.length;
+
+        // Calculate final ensemble error
+        this.resetError();
+        for (let i = 0; i < this.trialInputsList.length; i++) {
+            const ensemblePred = this.runEnsemble(this.trialInputsList[i]);
+            const target = this.trialOutputsList[i];
+
+            let error = 0;
+            for (let j = 0; j < this.outputSize; j++) {
+                error += Math.abs(ensemblePred[j] - target[j]) ** this.trialPower;
+            }
+            this.neuralNetworks[0].error += error;
+        }
+
+        this.neuralNetworks[0].error = (this.neuralNetworks[0].error / this.trialInputsList.length) ** (1 / this.trialPower);
+
+        return this.neuralNetworks[0].error;
+    }
+
+    // Run ensemble prediction (sum of all network outputs)
+    private runEnsemble(inputs: number[]): number[] {
+        const output = new Array(this.outputSize).fill(0);
+
+        for (const nn of this.neuralNetworks) {
+            const result = nn.run(inputs);
+            for (let i = 0; i < this.outputSize; i++) {
+                output[i] += result.neurons[i].value;
+            }
+        }
+
+        return output;
+    }
+
+    // Get a virtual network representing the ensemble for display purposes
+    public getEnsembleNetwork(): NeuralNetwork {
+        // Create a copy of the first network structure
+        const ensemble = this.neuralNetworks[0].clone();
+
+        // Override the run method to use ensemble prediction
+        const originalRun = ensemble.run.bind(ensemble);
+        ensemble.run = (inputs: number[]) => {
+            // Get ensemble prediction
+            const ensembleOutput = this.runEnsemble(inputs);
+
+            // Run the network normally first to set up the structure
+            originalRun(inputs);
+
+            // Override output values with ensemble prediction
+            for (let i = 0; i < ensembleOutput.length; i++) {
+                ensemble.getOutputLayer().neurons[i].value = ensembleOutput[i];
+            }
+
+            return ensemble.getOutputLayer();
+        };
+
+        return ensemble;
     }
 
     public sort(){
@@ -344,6 +525,20 @@ export class NeuralNetwork {
             }
         }
     }
+
+    // Randomize all weights and biases (for creating new networks in XGBoost)
+    public randomize(){
+        for (let l = 1; l < this.numOfLayers; l++) {
+            for (let n = 0; n < this.layers[l].neurons.length; n++) {
+                const neuron = this.layers[l].neurons[n];
+                neuron.bias = Math.random() * 2 - 1;
+
+                for (let w = 0; w < neuron.weights.length; w++) {
+                    neuron.weights[w].value = Math.random() * 2 - 1;
+                }
+            }
+        }
+    }
     public testError(outputs: number[], additive: boolean, power?:number){
         let sum = 0;
         let meanSum = 0;
@@ -383,9 +578,7 @@ export class NeuralNetwork {
         const outputLayer = this.layers[this.numOfLayers - 1];
         for (let i = 0; i < outputLayer.neurons.length; i++) {
             const neuron = outputLayer.neurons[i];
-            // Gradient of loss (MSE) with respect to output: 2 * (output - target)
             const error = neuron.value - targetOutputs[i];
-            // Chain rule: dL/dOutput * dOutput/dPreActivation
             neuron.gradient = 2 * error * neuron.activationDerivative();
         }
 
@@ -428,7 +621,6 @@ export class NeuralNetwork {
                 neuron.biasVelocity = this.momentum * neuron.biasVelocity - this.learningRate * neuron.gradient;
                 neuron.bias += neuron.biasVelocity;
 
-                // Clamp bias if needed
                 if (this.clampBiases) {
                     neuron.bias = Math.max(-1, Math.min(1, neuron.bias));
                 }
@@ -439,10 +631,23 @@ export class NeuralNetwork {
                     weight.velocity = this.momentum * weight.velocity - this.learningRate * weight.gradient;
                     weight.value += weight.velocity;
 
-                    // Clamp weight if needed
                     if (this.clampWeights) {
                         weight.value = Math.max(-1, Math.min(1, weight.value));
                     }
+                }
+            }
+        }
+    }
+
+    // Shrink all weights and biases by a factor (for XGBoost shrinkage/regularization)
+    public shrinkWeights(shrinkage: number) {
+        for (let l = 1; l < this.numOfLayers; l++) {
+            for (let n = 0; n < this.layers[l].neurons.length; n++) {
+                const neuron = this.layers[l].neurons[n];
+                neuron.bias *= shrinkage;
+
+                for (let w = 0; w < neuron.weights.length; w++) {
+                    neuron.weights[w].value *= shrinkage;
                 }
             }
         }
@@ -454,16 +659,11 @@ export class NeuralNetwork {
             throw new Error('Inputs and target outputs must have same length');
         }
 
-        // Batch learning: accumulate gradients across all samples, then apply once
         for (let i = 0; i < inputs.length; i++) {
-            // Forward pass
             this.run(inputs[i]);
-
-            // Backward pass (reset gradients only on first sample)
             this.backPropogate(targetOutputs[i], i === 0);
         }
 
-        // Normalize gradients by batch size
         const batchSize = inputs.length;
         for (let l = 1; l < this.numOfLayers; l++) {
             for (let n = 0; n < this.layers[l].neurons.length; n++) {
@@ -509,15 +709,11 @@ export class NeuralNetwork {
 
                 targetNeuron.value = sourceNeuron.value;
                 targetNeuron.bias = sourceNeuron.bias;
-                // Copy momentum velocity for bias (needed for elitist rollback)
                 targetNeuron.biasVelocity = sourceNeuron.biasVelocity;
-                // Don't copy gradient or preActivation - these are temporary computation values
 
                 for (let w = 0; w < sourceNeuron.weights.length; w++) {
                     targetNeuron.weights[w].value = sourceNeuron.weights[w].value;
-                    // Copy momentum velocity for weight (needed for elitist rollback)
                     targetNeuron.weights[w].velocity = sourceNeuron.weights[w].velocity;
-                    // Don't copy gradient - it's a temporary computation value
                 }
             }
         }
@@ -652,7 +848,7 @@ export class NeuralNetwork {
         if (displayErrorDigits){
             ctx.font = '12px sans-serif';
             ctx.fillStyle = '#000000';
-            let textStr = "ϵ: " + (Math.floor(this.error * 10**displayErrorDigits) / 10**displayErrorDigits).toString()
+            let textStr = "ϵ RMSE: " + (Math.floor(this.error * 10**displayErrorDigits) / 10**displayErrorDigits).toString()
             let drawn = false;
             while (textStr.length > 0 && textStr != "-" && !drawn){
                 let measure = ctx.measureText(textStr);
@@ -670,7 +866,7 @@ export class NeuralNetwork {
         if (displayMeanError){
             ctx.font = '12px sans-serif';
             ctx.fillStyle = '#000000';
-            let textStr = "μ: " + (Math.floor(this.meanError * 10**displayErrorDigits) / 10**displayErrorDigits).toString()
+            let textStr = "μ MAE: " + (Math.floor(this.meanError * 10**displayErrorDigits) / 10**displayErrorDigits).toString()
             let drawn = false;
             while (textStr.length > 0 && textStr != "-" && !drawn){
                 let measure = ctx.measureText(textStr);
@@ -686,7 +882,7 @@ export class NeuralNetwork {
         }
     }
     
-    private displayGrid2Input1Output(ctx, left: number, top: number, width: number, height: number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, rows: number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, getCellValue: (input1: number, input2: number) => number, getColorValue: (cellValue: number) => number){
+    public displayGrid2Input1Output(ctx, left: number, top: number, width: number, height: number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, rows: number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, getCellValue: (input1: number, input2: number) => number, getColorValue: (cellValue: number) => number){
         const headerOffset = showHeaders ? 1 : 0;
         let spaceX = width / (columns + headerOffset);
         let spaceY = height / (rows + headerOffset);
@@ -826,7 +1022,7 @@ export class NeuralNetwork {
         return this.interpolateColor(color1, color2, weight);
     }
 
-    private displayGrid2Input2Output(ctx, left: number, top: number, width: number, height: number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, rows: number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, color1: {r: number, g: number, b: number}, color2: {r: number, g: number, b: number}, getOutputs: (input1: number, input2: number) => number[]){
+    public displayGrid2Input2Output(ctx, left: number, top: number, width: number, height: number, axis1low: number, axis2low: number, axis1high: number, axis2high: number, rows: number, columns: number, decimals: number, showText: boolean, showHeaders: boolean, color1: {r: number, g: number, b: number}, color2: {r: number, g: number, b: number}, getOutputs: (input1: number, input2: number) => number[]){
         const headerOffset = showHeaders ? 1 : 0;
         let spaceX = width / (columns + headerOffset);
         let spaceY = height / (rows + headerOffset);
@@ -993,10 +1189,8 @@ class Neuron {
             case "relu":
                 return this.preActivation > 0 ? 1 : 0;
             case "sigmoid":
-                // sigmoid'(x) = sigmoid(x) * (1 - sigmoid(x))
                 return this.value * (1 - this.value);
             case "tanh":
-                // tanh'(x) = 1 - tanh(x)^2
                 return 1 - this.value * this.value;
         }
         return 0;
@@ -1005,7 +1199,7 @@ class Neuron {
 class Weight {
     value: number;
     to: NeuronPosition;
-    gradient: number = 0; // Gradient for backpropagation
+    gradient: number = 0; 
     velocity: number = 0; // Momentum for weight
 
     constructor(value: number, to: NeuronPosition) {

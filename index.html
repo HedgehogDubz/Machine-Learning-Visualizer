@@ -9,7 +9,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="sidebar">
+        <div class="sidebar" autocomplete="off">
             <h1>Controls</h1>
 
             <div class="control-group">
@@ -17,7 +17,15 @@
                 <select id="networkFormat" onchange="networkChange()">
                     <option value="Val2in1out">Value: 2in1out</option>
                     <option value="Cat2in2out">Cat: 2in2out</option>
+                    <option value="CatNout">Cat: N classes</option>
                 </select>
+                <div id="numCategoriesGroup" style="display: none;">
+                    <label>Categories: <span id="numCategoriesDisplay">3</span></label>
+                    <div class="slider-group">
+                        <input type="range" id="numCategoriesSlider" min="2" max="10" step="1" value="3" oninput="numCategoriesChange()">
+                        <input type="number" id="numCategoriesInput" min="2" max="10" step="1" value="3" onchange="numCategoriesChange()">
+                    </div>
+                </div>
             </div>
 
             <div class="control-row">
@@ -67,22 +75,54 @@
                 <select id="trainingMethod" onchange="trainingMethodChange()">
                     <option value="genetic">Genetic</option>
                     <option value="backprop">Backprop</option>
+                    <option value="XGBoost">XGBoost</option>
                 </select>
             </div>
 
-            <div class="control-group">
-                <label>Learning Rate: <span id="learningRateDisplay">0.01</span></label>
-                <div class="slider-group">
-                    <input type="range" id="learningRateSlider" min="0.001" max="0.5" step="0.001" value="0.01" oninput="inputSliderChange()">
-                    <input type="number" id="learningRate" step="0.001" value="0.01" onchange="inputChange()">
+            <div id="backpropSettings" style="display: none;">
+                <div class="control-group">
+                    <label>Learning Rate: <span id="learningRateDisplay">0.01</span></label>
+                    <div class="slider-group">
+                        <input type="range" id="learningRateSlider" min="0.001" max="0.5" step="0.001" value="0.01" oninput="inputSliderChange()">
+                        <input type="number" id="learningRate" step="0.001" value="0.01" onchange="inputChange()">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Momentum: <span id="momentumDisplay">0.9</span></label>
+                    <div class="slider-group">
+                        <input type="range" id="momentumSlider" min="0" max="0.99" step="0.01" value="0.9" oninput="inputSliderChange()">
+                        <input type="number" id="momentum" step="0.01" value="0.9" onchange="inputChange()">
+                    </div>
                 </div>
             </div>
 
-            <div class="control-group">
-                <label>Momentum: <span id="momentumDisplay">0.9</span></label>
-                <div class="slider-group">
-                    <input type="range" id="momentumSlider" min="0" max="0.99" step="0.01" value="0.9" oninput="inputSliderChange()">
-                    <input type="number" id="momentum" step="0.01" value="0.9" onchange="inputChange()">
+            <div id="xgboostSettings" style="display: none;">
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="limitTreesToggle" onchange="limitTreesToggleChange()">
+                        Limit Trees: <span id="maxTreesDisplay">&#8734;</span>
+                    </label>
+                    <div class="slider-group" id="maxTreesSliderGroup" style="display: none;">
+                        <input type="range" id="maxTreesSlider" min="1" max="1000" step="1" value="20" oninput="xgboostSliderChange()">
+                        <input type="number" id="maxTrees" step="1" value="20" onchange="xgboostInputChange()">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Shrinkage: <span id="shrinkageDisplay">0.10</span></label>
+                    <div class="slider-group">
+                        <input type="range" id="shrinkageSlider" min="0.01" max="1" step="0.01" value="0.1" oninput="xgboostSliderChange()">
+                        <input type="number" id="shrinkage" step="0.01" value="0.1" onchange="xgboostInputChange()">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Max Depth: <span id="maxDepthDisplay">4</span></label>
+                    <div class="slider-group">
+                        <input type="range" id="maxDepthSlider" min="1" max="10" step="1" value="4" oninput="xgboostSliderChange()">
+                        <input type="number" id="maxDepth" step="1" value="4" onchange="xgboostInputChange()">
+                    </div>
                 </div>
             </div>
 
@@ -120,6 +160,6 @@
             <canvas id="canvas"></canvas>
         </div>
     </div>
-    <script type="module" src="index.js"></script>
+    <script src="dist/bundle.js"></script>
 </body>
 </html>
