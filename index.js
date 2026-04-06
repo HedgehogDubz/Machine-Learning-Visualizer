@@ -10,7 +10,19 @@ let frame = 0;
 window.addEventListener('resize', resizeCanvas);
 window.onload = function () {
     // Reset all form elements to defaults so browser-cached values don't desync
-    document.querySelectorAll('select').forEach(el => el.selectedIndex = 0);
+    document.querySelectorAll('select').forEach(sel => {
+        const opts = sel.options;
+        let found = false;
+        for (let i = 0; i < opts.length; i++) {
+            if (opts[i].defaultSelected) {
+                sel.selectedIndex = i;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            sel.selectedIndex = 0;
+    });
     document.querySelectorAll('input[type="range"]').forEach(el => {
         el.value = el.defaultValue;
     });
@@ -20,18 +32,19 @@ window.onload = function () {
     document.querySelectorAll('input[type="checkbox"]').forEach(el => {
         el.checked = el.defaultChecked;
     });
-    resizeCanvas();
     start();
+    resizeCanvas();
     setInterval(() => {
         update();
         frame++;
     }, 1);
 };
 let isStarted = false;
-let networkFormat = 'Val2in1out';
+let networkFormat = 'Val1in1Out';
 let numCategories = 3;
 let showDataFormat = 'output';
 let showNetworkFormat = 'best';
+let testFunctionVal1in1out = 'sine';
 let testFunctionVal2in1out = 'wave';
 let testFunctionCat2in2out = 'circle';
 let testFunctionCatNout = 'sectors';
@@ -42,6 +55,10 @@ let input2 = 0;
 let generationsPerDrawCycle = 1;
 let learningRate = 0.01; // Learning rate for backpropagation
 let momentum = 0.9; // Momentum for backpropagation
+let geneticMutationWeights = 100;
+let geneticMutationWeightStrength = 0.01;
+let geneticMutationBiases = 100;
+let geneticMutationBiasStrength = 0.01;
 let xgbMaxTrees = Infinity;
 let xgbLimitTrees = false;
 let xgbShrinkage = 0.1;
@@ -131,6 +148,80 @@ function drawNClassGrid(ctx, left, top, width, height, axis1low, axis2low, axis1
     }
     ctx.restore();
 }
+function drawLineGraph(ctx, left, top, width, height, xLow, xHigh, yLow, yHigh, lines, numPoints = 200, showAxes = true) {
+    ctx.save();
+    ctx.fillStyle = '#f8f8f8';
+    ctx.fillRect(left, top, width, height);
+    const toScreenX = (x) => left + ((x - xLow) / (xHigh - xLow)) * width;
+    const toScreenY = (y) => top + height - ((y - yLow) / (yHigh - yLow)) * height;
+    // Draw grid lines
+    if (showAxes) {
+        ctx.strokeStyle = '#ddd';
+        ctx.lineWidth = 0.5;
+        for (let v = Math.ceil(xLow * 5) / 5; v <= xHigh; v += 0.2) {
+            const sx = toScreenX(v);
+            ctx.beginPath();
+            ctx.moveTo(sx, top);
+            ctx.lineTo(sx, top + height);
+            ctx.stroke();
+        }
+        for (let v = Math.ceil(yLow * 5) / 5; v <= yHigh; v += 0.2) {
+            const sy = toScreenY(v);
+            ctx.beginPath();
+            ctx.moveTo(left, sy);
+            ctx.lineTo(left + width, sy);
+            ctx.stroke();
+        }
+        // Axes
+        ctx.strokeStyle = '#999';
+        ctx.lineWidth = 1;
+        if (yLow <= 0 && yHigh >= 0) {
+            const y0 = toScreenY(0);
+            ctx.beginPath();
+            ctx.moveTo(left, y0);
+            ctx.lineTo(left + width, y0);
+            ctx.stroke();
+        }
+        if (xLow <= 0 && xHigh >= 0) {
+            const x0 = toScreenX(0);
+            ctx.beginPath();
+            ctx.moveTo(x0, top);
+            ctx.lineTo(x0, top + height);
+            ctx.stroke();
+        }
+        // Axis labels
+        ctx.fillStyle = '#666';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        for (let v = Math.ceil(xLow * 2) / 2; v <= xHigh; v += 0.5) {
+            ctx.fillText(v.toFixed(1), toScreenX(v), top + height + 1);
+        }
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (let v = Math.ceil(yLow * 2) / 2; v <= yHigh; v += 0.5) {
+            ctx.fillText(v.toFixed(1), left - 2, toScreenY(v));
+        }
+    }
+    // Draw each line
+    for (const line of lines) {
+        ctx.strokeStyle = line.color;
+        ctx.lineWidth = line.lineWidth ?? 2;
+        ctx.beginPath();
+        for (let i = 0; i <= numPoints; i++) {
+            const x = xLow + (i / numPoints) * (xHigh - xLow);
+            const y = line.fn(x);
+            const sx = toScreenX(x);
+            const sy = toScreenY(Math.max(yLow, Math.min(yHigh, y)));
+            if (i === 0)
+                ctx.moveTo(sx, sy);
+            else
+                ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+    }
+    ctx.restore();
+}
 ///////////////////////MAIN AREA//////////////////////////////////
 // Number of networks depends on training method: genetic needs 16, backprop needs 1
 // Default is genetic (16 networks)
@@ -167,7 +258,13 @@ function resizeCanvas() {
     update();
 }
 function start() {
-    createTrials();
+    // Sync all JS state from the (reset) UI
+    showDataFormat = document.getElementById('showDataFormat').value;
+    showNetworkFormat = document.getElementById('showNetworkFormat').value;
+    showTrainingData = document.getElementById('showTrainingData').value;
+    trainingMethod = document.getElementById('trainingMethod').value;
+    networkChange(); // sets up network format, creates trials, etc.
+    updateSettingsVisibility();
 }
 function update() {
     if (isStarted) {
@@ -175,19 +272,15 @@ function update() {
         if (trainingMethod === 'genetic') {
             // Genetic algorithm training
             if (nnl instanceof NeuralNetworkList) {
-                let mutation_num_of_weights = 100;
-                let mutation_weight_strength = 0.01;
-                let mutation_num_of_biases = 100;
-                let mutation_bias_strength = 0.01;
                 for (let i = 0; i < generationsPerDrawCycle; i++) {
-                    bestFitness = nnl.runGeneration(mutation_num_of_weights, mutation_weight_strength, mutation_num_of_biases, mutation_bias_strength);
+                    bestFitness = nnl.runGeneration(geneticMutationWeights, geneticMutationWeightStrength, geneticMutationBiases, geneticMutationBiasStrength);
                     if (bestFitness === lastError) {
-                        mutation_bias_strength /= 1.001;
-                        mutation_weight_strength /= 1.001;
+                        geneticMutationBiasStrength = Math.max(0.0001, geneticMutationBiasStrength / 1.001);
+                        geneticMutationWeightStrength = Math.max(0.0001, geneticMutationWeightStrength / 1.001);
                     }
                     else {
-                        mutation_bias_strength *= 1.001;
-                        mutation_weight_strength *= 1.001;
+                        geneticMutationBiasStrength = Math.min(1, geneticMutationBiasStrength * 1.001);
+                        geneticMutationWeightStrength = Math.min(1, geneticMutationWeightStrength * 1.001);
                     }
                 }
             }
@@ -198,7 +291,7 @@ function update() {
                 nnl.setLearningRate(learningRate);
                 nnl.setMomentum(momentum);
                 for (let i = 0; i < generationsPerDrawCycle; i++) {
-                    bestFitness = nnl.trainBackpropagation(100);
+                    bestFitness = nnl.trainBackpropagation(1);
                 }
             }
         }
@@ -231,7 +324,8 @@ function update() {
     const displayHeaderHeight = 50;
     const displayHeader = true;
     const rowSize = 4;
-    const xgbInput = [input1, input2];
+    const currentInputs = inputSize === 1 ? [input1] : [input1, input2];
+    const xgbInput = currentInputs;
     const contentTop = displayHeaderHeight;
     const contentHeight = hch - displayHeaderHeight;
     // Always draw header first
@@ -273,7 +367,7 @@ function update() {
                 topPanelMaxScroll = 0;
                 topPanelScroll = 0;
                 let n = nnl.neuralNetworks[0].clone();
-                n.run([input1, input2]);
+                n.run(currentInputs);
                 n.draw(ctx, 0, contentTop, canvas.width, contentHeight, displayErrorDigits, displayMeanError);
             }
             break;
@@ -306,7 +400,69 @@ function update() {
     if (nnl instanceof NeuralNetworkList) {
         const displayNetwork = nnl.neuralNetworks[0];
         const isXGB = trainingMethod === 'XGBoost' && xgboost;
-        if (networkFormat === 'Val2in1out') {
+        if (networkFormat === 'Val1in1Out') {
+            const graphMargin = 15;
+            const graphLeft = graphMargin;
+            const graphTop = hch + 5;
+            const graphWidth = canvas.width - graphMargin * 2;
+            const graphHeight = hch - 10;
+            const predictLine = (x) => predict([x])[0];
+            const testLine = (x) => test([x])[0];
+            const errorLine = (x) => predictLine(x) - testLine(x);
+            switch (showDataFormat) {
+                case "none":
+                    drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, []);
+                    break;
+                case "trainvsoutput":
+                    drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
+                        { fn: testLine, color: '#4CAF50', lineWidth: 1.5 },
+                        { fn: predictLine, color: '#2196F3', lineWidth: 2 },
+                    ]);
+                    break;
+                case "output":
+                    drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
+                        { fn: predictLine, color: '#2196F3', lineWidth: 2 },
+                    ]);
+                    break;
+                case "test":
+                    drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
+                        { fn: testLine, color: '#4CAF50', lineWidth: 2 },
+                    ]);
+                    break;
+                case "error":
+                    drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
+                        { fn: errorLine, color: '#E53935', lineWidth: 2 },
+                    ]);
+                    break;
+            }
+            // Overlay training data and test together when showing output
+            if (showTrainingData === 'output') {
+                drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
+                    { fn: predictLine, color: '#2196F3', lineWidth: 1.5 },
+                ], 200, false);
+            }
+            else if (showTrainingData === 'test') {
+                drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
+                    { fn: testLine, color: '#4CAF50', lineWidth: 1.5 },
+                ], 200, false);
+            }
+            else if (showTrainingData === 'error') {
+                drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
+                    { fn: errorLine, color: '#E53935', lineWidth: 1.5 },
+                ], 200, false);
+            }
+            // Draw input marker
+            const markerX = graphLeft + ((input1 - axis1low) / (axis1high - axis1low)) * graphWidth;
+            ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(markerX, graphTop);
+            ctx.lineTo(markerX, graphTop + graphHeight);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        else if (networkFormat === 'Val2in1out') {
             switch (showDataFormat) {
                 case "none":
                     ctx.fillRect(0, hch, hcw - padding * canvas.width, hch);
@@ -510,6 +666,22 @@ function createInputs(numOfInputs, high, low, spacing) {
 }
 function test(inputs) {
     switch (networkFormat) {
+        case "Val1in1Out":
+            switch (testFunctionVal1in1out) {
+                case "sine":
+                    return [Math.sin(inputs[0] * Math.PI)];
+                case "square":
+                    return [Math.sin(inputs[0] * Math.PI * 2) > 0 ? 1 : -1];
+                case "sawtooth":
+                    return [((inputs[0] + 1) % 0.5) * 4 - 1];
+                case "abs":
+                    return [Math.abs(inputs[0]) * 2 - 1];
+                case "cubic":
+                    return [Math.max(-1, Math.min(1, inputs[0] ** 3 * 4))];
+                case "step":
+                    return [inputs[0] < -0.5 ? -1 : inputs[0] < 0 ? -0.3 : inputs[0] < 0.5 ? 0.3 : 1];
+            }
+            break;
         case "Val2in1out":
             switch (testFunctionVal2in1out) {
                 case "wave":
@@ -601,6 +773,22 @@ function networkChange() {
     const testFunctionDropdown = document.getElementById('testFunction');
     testFunctionDropdown.innerHTML = '';
     switch (networkFormat) {
+        case 'Val1in1Out':
+            inputSize = 1;
+            outputSize = 1;
+            hiddenLayerSizes = [7, 10, 20, 20, 10, 7];
+            activationFunction = 'relu';
+            outputActivationFunction = 'tanh';
+            testFunctionDropdown.innerHTML = `
+                <option value="sine">Sine</option>
+                <option value="square">Square Wave</option>
+                <option value="sawtooth">Sawtooth</option>
+                <option value="abs">Abs</option>
+                <option value="cubic">Cubic</option>
+                <option value="step">Step</option>
+            `;
+            testFunctionDropdown.value = testFunctionVal1in1out;
+            break;
         case 'Val2in1out':
             inputSize = 2;
             outputSize = 1;
@@ -650,9 +838,35 @@ function networkChange() {
             testFunctionDropdown.value = testFunctionCatNout;
             break;
     }
-    // Show/hide categories slider
+    // Show/hide categories slider and input2
     document.getElementById('numCategoriesGroup').style.display =
         networkFormat === 'CatNout' ? '' : 'none';
+    document.getElementById('input2Group').style.display =
+        inputSize >= 2 ? '' : 'none';
+    // Update data format dropdown for 1in1out (has extra "Train vs Output" option)
+    const dataFormatDropdown = document.getElementById('showDataFormat');
+    if (networkFormat === 'Val1in1Out') {
+        dataFormatDropdown.innerHTML = `
+            <option value="trainvsoutput">Train vs Output</option>
+            <option value="output">Output</option>
+            <option value="test">Test</option>
+            <option value="error">Error</option>
+            <option value="none">None</option>
+        `;
+        showDataFormat = 'trainvsoutput';
+        dataFormatDropdown.value = 'trainvsoutput';
+    }
+    else {
+        dataFormatDropdown.innerHTML = `
+            <option value="none">None</option>
+            <option value="output" selected>Output</option>
+            <option value="error">Error</option>
+            <option value="test">Test</option>
+        `;
+        if (showDataFormat === 'trainvsoutput')
+            showDataFormat = 'output';
+        dataFormatDropdown.value = showDataFormat;
+    }
     // Set number of networks based on training method
     if (trainingMethod === 'backprop') {
         numOfNeuralNetworks = 1;
@@ -665,7 +879,7 @@ function networkChange() {
     }
     nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
     if (trainingMethod === 'XGBoost') {
-        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out');
+        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out' && networkFormat !== 'Val1in1Out');
     }
     createTrials();
 }
@@ -680,7 +894,10 @@ function showNetworkChange() {
 window.showNetworkChange = showNetworkChange;
 function testFunctionChange() {
     const value = document.getElementById('testFunction').value;
-    if (networkFormat === 'Val2in1out') {
+    if (networkFormat === 'Val1in1Out') {
+        testFunctionVal1in1out = value;
+    }
+    else if (networkFormat === 'Val2in1out') {
         testFunctionVal2in1out = value;
     }
     else if (networkFormat === 'Cat2in2out') {
@@ -748,7 +965,7 @@ function reset() {
     topPanelScroll = 0;
     if (trainingMethod === 'XGBoost') {
         nnl = new NeuralNetworkList(1, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
-        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out');
+        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out' && networkFormat !== 'Val1in1Out');
     }
     else {
         nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
@@ -767,7 +984,7 @@ function trainingMethodChange() {
     if (newTrainingMethod === 'XGBoost' && trainingMethod !== 'XGBoost') {
         // Switching TO XGBoost: create XGBoost ensemble
         nnl = new NeuralNetworkList(1, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
-        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out');
+        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out' && networkFormat !== 'Val1in1Out');
         createTrials();
         numOfNeuralNetworks = 1;
     }
@@ -915,7 +1132,7 @@ function xgbResolutionChange() {
     xgbTrainInputs = createInputs(inputSize, 1, -1, xgbResolution);
     xgbTrainOutputs = xgbTrainInputs.map(inp => test(inp));
     if (xgboost) {
-        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out');
+        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out' && networkFormat !== 'Val1in1Out');
     }
 }
 window.xgbResolutionChange = xgbResolutionChange;

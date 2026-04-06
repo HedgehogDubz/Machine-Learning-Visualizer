@@ -292,40 +292,47 @@ export class NeuralNetworkList {
         });
     }
 
+    private _backpropWorker: NeuralNetwork | null = null;
+    private _backpropBestError: number = Infinity;
+
     public trainBackpropagation(epochs: number = 1): number {
         this.generation++;
 
-        this.resetError();
-        this.testErrorTrials(this.trialInputsList, this.trialOutputsList, this.trialPower);
-        this.sort();
+        // Lazy-init: the worker is the actual training network, index 0 holds the best for display
+        if (!this._backpropWorker) {
+            this._backpropWorker = this.neuralNetworks[0].clone();
+            this._backpropBestError = Infinity;
+        }
 
-        const errorBefore = this.neuralNetworks[0].error;
-
-        const backup = this.neuralNetworks[0].clone();
-
+        // Train the worker
         for (let epoch = 0; epoch < epochs; epoch++) {
-            this.neuralNetworks[0].trainBatch(this.trialInputsList, this.trialOutputsList);
+            this._backpropWorker.trainBatch(this.trialInputsList, this.trialOutputsList);
         }
 
-        this.neuralNetworks[0].error = 0;
-        this.neuralNetworks[0].meanError = 0;
+        // Recalculate worker error
+        this._backpropWorker.error = 0;
+        this._backpropWorker.meanError = 0;
         for (let i = 0; i < this.trialInputsList.length; i++) {
-            this.neuralNetworks[0].run(this.trialInputsList[i]);
-            this.neuralNetworks[0].testError(this.trialOutputsList[i], true, this.trialPower);
+            this._backpropWorker.run(this.trialInputsList[i]);
+            this._backpropWorker.testError(this.trialOutputsList[i], true, this.trialPower);
         }
-        this.neuralNetworks[0].error = (this.neuralNetworks[0].error / this.trialInputsList.length) ** (1 / this.trialPower);
-        this.neuralNetworks[0].meanError /= this.trialInputsList.length;
+        this._backpropWorker.error = (this._backpropWorker.error / this.trialInputsList.length) ** (1 / this.trialPower);
+        this._backpropWorker.meanError /= this.trialInputsList.length;
 
-        if (this.neuralNetworks[0].error > errorBefore) {
-            this.neuralNetworks[0] = backup;
-            this.trainRMSE = errorBefore;
-            this.trainMAE = backup.meanError;
-            return errorBefore;
+        // If worker improved, update the display network (index 0)
+        if (this._backpropWorker.error < this._backpropBestError) {
+            this._backpropBestError = this._backpropWorker.error;
+            this.neuralNetworks[0] = this._backpropWorker.clone();
         }
 
-        this.trainRMSE = this.neuralNetworks[0].error;
+        this.trainRMSE = this._backpropBestError;
         this.trainMAE = this.neuralNetworks[0].meanError;
-        return this.neuralNetworks[0].error;
+        return this._backpropBestError;
+    }
+
+    public resetBackpropWorker() {
+        this._backpropWorker = null;
+        this._backpropBestError = Infinity;
     }
 
     // XGBoost-style training: Add one new network to ensemble, trained on residuals
@@ -577,8 +584,8 @@ export class NeuralNetwork {
             neuron.gradient = 2 * error * neuron.activationDerivative();
         }
 
-        // Backpropagate through hidden layers
-        for (let l = this.numOfLayers - 2; l >= 1; l--) {
+        // Backpropagate through hidden layers (down to 0 to accumulate weight gradients on layer 1)
+        for (let l = this.numOfLayers - 2; l >= 0; l--) {
             const currentLayer = this.layers[l];
             const nextLayer = this.layers[l + 1];
 
