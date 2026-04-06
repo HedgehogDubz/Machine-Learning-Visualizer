@@ -9,17 +9,19 @@ export class XGBoostEnsemble {
     shrinkage: number = 0.1;
     maxDepth: number = 4;
     maxTrees: number = Infinity;
+    isClassification: boolean = false;
     trainRMSE: number = 0;
     trainMAE: number = 0;
     testRMSE: number = 0;
     testMAE: number = 0;
 
-    constructor(inputSize: number, outputSize: number, shrinkage: number = 0.1, maxDepth: number = 4, maxTrees: number = Infinity) {
+    constructor(inputSize: number, outputSize: number, shrinkage: number = 0.1, maxDepth: number = 4, maxTrees: number = Infinity, isClassification: boolean = false) {
         this.inputSize = inputSize;
         this.outputSize = outputSize;
         this.shrinkage = shrinkage;
         this.maxDepth = maxDepth;
         this.maxTrees = maxTrees;
+        this.isClassification = isClassification;
     }
 
     // Train: Add one new tree that learns the residuals
@@ -29,6 +31,7 @@ export class XGBoostEnsemble {
         // First call: train a base tree on the actual data
         if (this.trees.length === 0) {
             const baseTree = new DecisionTree(this.inputSize, this.outputSize, this.maxDepth);
+            baseTree.isClassification = this.isClassification;
             baseTree.train(inputs, outputs);
             this.trees.push(baseTree);
             this.computeErrors(inputs, outputs, testInputs, testFn);
@@ -47,6 +50,7 @@ export class XGBoostEnsemble {
 
             // Create and train new tree on residuals
             const newTree = new DecisionTree(this.inputSize, this.outputSize, this.maxDepth);
+            newTree.isClassification = this.isClassification;
             newTree.train(inputs, residuals);
             this.trees.push(newTree);
         }
@@ -116,7 +120,7 @@ export class XGBoostEnsemble {
         return displayHeaderHeight + rows * cellHeight;
     }
 
-    private drawHeader(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, displayHeaderHeight: number) {
+    public drawHeader(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, displayHeaderHeight: number) {
         ctx.fillStyle = "#e0e0e0";
         ctx.fillRect(left, top, width, displayHeaderHeight);
         ctx.fillStyle = "#000000";
@@ -126,11 +130,10 @@ export class XGBoostEnsemble {
         ctx.fillText(text, left + 5, top + displayHeaderHeight / 2);
     }
 
-    // Draw a single tree (base or latest) filling the full area, with input path highlighting
+    // Draw a single tree (base or latest) filling the full content area (no header — caller draws it)
     drawSingleTree(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, height: number,
-                   displayHeaderHeight: number, treeIndex: number, input?: number[]) {
+                   treeIndex: number, input?: number[]) {
         ctx.save();
-        this.drawHeader(ctx, left, top, width, displayHeaderHeight);
 
         if (this.trees.length === 0 || treeIndex < 0 || treeIndex >= this.trees.length) {
             ctx.restore();
@@ -138,8 +141,6 @@ export class XGBoostEnsemble {
         }
 
         const tree = this.trees[treeIndex];
-        const treeTop = top + displayHeaderHeight;
-        const treeHeight = height - displayHeaderHeight;
 
         // Draw label
         ctx.fillStyle = "#000000";
@@ -147,10 +148,10 @@ export class XGBoostEnsemble {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         const label = treeIndex === 0 ? `Tree 0 (base)` : `Tree ${treeIndex}`;
-        ctx.fillText(label, left + 5, treeTop + 2);
+        ctx.fillText(label, left + 5, top + 2);
 
         const highlightPath = input ? tree.getPath(input) : undefined;
-        tree.draw(ctx, left, treeTop + 15, width, treeHeight - 15, highlightPath);
+        tree.draw(ctx, left, top + 15, width, height - 15, highlightPath);
 
         // Show prediction value if input provided
         if (input && highlightPath) {
@@ -159,7 +160,7 @@ export class XGBoostEnsemble {
             ctx.font = 'bold 12px sans-serif';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'top';
-            ctx.fillText(`Prediction: ${pred.map(v => v.toFixed(3)).join(', ')}`, left + width - 5, treeTop + 2);
+            ctx.fillText(`Prediction: ${pred.map(v => v.toFixed(3)).join(', ')}`, left + width - 5, top + 2);
         }
 
         ctx.restore();
@@ -170,12 +171,10 @@ export class XGBoostEnsemble {
          displayHeaderHeight: number, scrollY: number = 0, input?: number[]) {
         ctx.save();
 
-        // Clip to the panel area
+        // Clip to the content area below the header
         ctx.beginPath();
-        ctx.rect(left, top, width, height);
+        ctx.rect(left, top + displayHeaderHeight, width, height - displayHeaderHeight);
         ctx.clip();
-
-        this.drawHeader(ctx, left, top, width, displayHeaderHeight);
 
         if (this.trees.length === 0) {
             ctx.restore();

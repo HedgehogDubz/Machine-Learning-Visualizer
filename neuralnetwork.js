@@ -47,14 +47,10 @@ export class NeuralNetworkList {
         const numRows = Math.ceil(this.neuralNetworks.length / rowSize);
         let ySpace = Math.max(NeuralNetworkList.MIN_CELL_HEIGHT, availableHeight / numRows);
         ctx.save();
-        // Clip to the panel area
+        // Clip to content area below header
         ctx.beginPath();
-        ctx.rect(left, top, width, height);
+        ctx.rect(left, top + headerH, width, height - headerH);
         ctx.clip();
-        //draw header (fixed, not scrolled)
-        if (displayHeader) {
-            this.drawHeader(ctx, left, top, width, headerH);
-        }
         //draw networks (scrolled)
         let col = 0;
         let row = 0;

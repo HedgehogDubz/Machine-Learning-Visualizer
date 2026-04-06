@@ -54,15 +54,10 @@ export class NeuralNetworkList {
 
         ctx.save();
 
-        // Clip to the panel area
+        // Clip to content area below header
         ctx.beginPath();
-        ctx.rect(left, top, width, height);
+        ctx.rect(left, top + headerH, width, height - headerH);
         ctx.clip();
-
-        //draw header (fixed, not scrolled)
-        if (displayHeader){
-            this.drawHeader(ctx, left, top, width, headerH);
-        }
 
         //draw networks (scrolled)
         let col = 0;

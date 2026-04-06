@@ -18,6 +18,7 @@ export class DecisionTree {
     minSamplesLeaf: number = 2;
     inputSize: number;
     outputSize: number;
+    isClassification: boolean = false;
     private _drawLeft: number = 0;
     private _drawRight: number = 0;
 
@@ -226,7 +227,16 @@ export class DecisionTree {
             ctx.fillStyle = onPath ? "#E53935" : "#000";
             ctx.font = leafFont;
             ctx.textAlign = "center";
-            const valStr = node.value!.map(v => v.toFixed(2)).join(', ');
+            let valStr: string;
+            if (this.isClassification && node.value!.length > 1) {
+                let maxIdx = 0;
+                for (let k = 1; k < node.value!.length; k++) {
+                    if (node.value![k] > node.value![maxIdx]) maxIdx = k;
+                }
+                valStr = (maxIdx + 1).toString();
+            } else {
+                valStr = node.value!.map(v => v.toFixed(2)).join(', ');
+            }
             ctx.fillText(valStr, clampX(x, valStr, leafFont), y + nodeRadius + 10);
         } else {
             // Draw decision node

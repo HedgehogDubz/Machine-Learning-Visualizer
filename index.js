@@ -46,6 +46,7 @@ let xgbMaxTrees = Infinity;
 let xgbLimitTrees = false;
 let xgbShrinkage = 0.1;
 let xgbMaxDepth = 4;
+let xgbResolution = 0.1;
 // Colors for Cat2in2out visualization
 let color1 = { r: 100, g: 150, b: 255 }; // Light blue for class 1
 let color2 = { r: 255, g: 100, b: 100 }; // Light red for class 2
@@ -205,7 +206,7 @@ function update() {
             // XGBoost: decision tree ensemble trained on residuals
             if (xgboost && nnl instanceof NeuralNetworkList) {
                 for (let i = 0; i < generationsPerDrawCycle; i++) {
-                    xgboost.train(nnl.trialInputsList, nnl.trialOutputsList, testInputsGrid, test);
+                    xgboost.train(xgbTrainInputs, xgbTrainOutputs, testInputsGrid, test);
                 }
                 bestFitness = xgboost.trainRMSE;
             }
@@ -231,6 +232,15 @@ function update() {
     const displayHeader = true;
     const rowSize = 4;
     const xgbInput = [input1, input2];
+    const contentTop = displayHeaderHeight;
+    const contentHeight = hch - displayHeaderHeight;
+    // Always draw header first
+    if (trainingMethod === 'XGBoost' && xgboost) {
+        xgboost.drawHeader(ctx, 0, 0, canvas.width, displayHeaderHeight);
+    }
+    else if (nnl instanceof NeuralNetworkList) {
+        nnl.drawHeader(ctx, 0, 0, canvas.width, displayHeaderHeight);
+    }
     switch (showNetworkFormat) {
         case "all":
             if (trainingMethod === 'XGBoost' && xgboost) {
@@ -248,24 +258,23 @@ function update() {
             if (xgboost) {
                 topPanelMaxScroll = 0;
                 topPanelScroll = 0;
-                xgboost.drawSingleTree(ctx, 0, 0, canvas.width, hch, displayHeaderHeight, 0, xgbInput);
+                xgboost.drawSingleTree(ctx, 0, contentTop, canvas.width, contentHeight, 0, xgbInput);
             }
             break;
         case "latest":
             if (xgboost) {
                 topPanelMaxScroll = 0;
                 topPanelScroll = 0;
-                xgboost.drawSingleTree(ctx, 0, 0, canvas.width, hch, displayHeaderHeight, xgboost.trees.length - 1, xgbInput);
+                xgboost.drawSingleTree(ctx, 0, contentTop, canvas.width, contentHeight, xgboost.trees.length - 1, xgbInput);
             }
             break;
         case "best":
             if (nnl instanceof NeuralNetworkList) {
                 topPanelMaxScroll = 0;
                 topPanelScroll = 0;
-                nnl.drawHeader(ctx, 0, 0, canvas.width, displayHeaderHeight);
                 let n = nnl.neuralNetworks[0].clone();
                 n.run([input1, input2]);
-                n.draw(ctx, 0, displayHeaderHeight, canvas.width, hch - displayHeaderHeight, displayErrorDigits, displayMeanError);
+                n.draw(ctx, 0, contentTop, canvas.width, contentHeight, displayErrorDigits, displayMeanError);
             }
             break;
     }
@@ -464,6 +473,8 @@ function update() {
     }
 }
 let testInputsGrid = [];
+let xgbTrainInputs = [];
+let xgbTrainOutputs = [];
 function createTrials() {
     const inputs = createInputs(inputSize, 1, -1, 0.1);
     // Test inputs: offset grid that doesn't overlap training data
@@ -473,6 +484,9 @@ function createTrials() {
         nnl.testInputs = testInputsGrid;
         nnl.testFn = test;
     }
+    // XGBoost training grid at configured resolution
+    xgbTrainInputs = createInputs(inputSize, 1, -1, xgbResolution);
+    xgbTrainOutputs = xgbTrainInputs.map(inp => test(inp));
 }
 function createInputs(numOfInputs, high, low, spacing) {
     const possibleValues = [];
@@ -651,7 +665,7 @@ function networkChange() {
     }
     nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
     if (trainingMethod === 'XGBoost') {
-        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees);
+        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out');
     }
     createTrials();
 }
@@ -734,7 +748,7 @@ function reset() {
     topPanelScroll = 0;
     if (trainingMethod === 'XGBoost') {
         nnl = new NeuralNetworkList(1, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
-        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees);
+        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out');
     }
     else {
         nnl = new NeuralNetworkList(numOfNeuralNetworks, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
@@ -753,7 +767,7 @@ function trainingMethodChange() {
     if (newTrainingMethod === 'XGBoost' && trainingMethod !== 'XGBoost') {
         // Switching TO XGBoost: create XGBoost ensemble
         nnl = new NeuralNetworkList(1, inputSize, hiddenLayerSizes, outputSize, activationFunction, outputActivationFunction);
-        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees);
+        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out');
         createTrials();
         numOfNeuralNetworks = 1;
     }
@@ -894,4 +908,15 @@ function xgboostInputChange() {
     }
 }
 window.xgboostInputChange = xgboostInputChange;
+function xgbResolutionChange() {
+    xgbResolution = parseFloat(document.getElementById('xgbResolution').value);
+    document.getElementById('xgbResolutionDisplay').textContent = xgbResolution.toString();
+    // Rebuild training data and reset XGBoost
+    xgbTrainInputs = createInputs(inputSize, 1, -1, xgbResolution);
+    xgbTrainOutputs = xgbTrainInputs.map(inp => test(inp));
+    if (xgboost) {
+        xgboost = new XGBoostEnsemble(inputSize, outputSize, xgbShrinkage, xgbMaxDepth, xgbMaxTrees, networkFormat !== 'Val2in1out');
+    }
+}
+window.xgbResolutionChange = xgbResolutionChange;
 ///////////////////////UI AREA////////////////////////////////////
