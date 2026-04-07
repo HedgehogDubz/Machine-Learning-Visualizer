@@ -63,7 +63,7 @@ let xgbMaxTrees = Infinity;
 let xgbLimitTrees = false;
 let xgbShrinkage = 0.1;
 let xgbMaxDepth = 4;
-let xgbResolution = 0.1;
+let xgbResolution = 0.02;
 // Colors for Cat2in2out visualization
 let color1 = { r: 100, g: 150, b: 255 }; // Light blue for class 1
 let color2 = { r: 255, g: 100, b: 100 }; // Light red for class 2
@@ -263,6 +263,9 @@ function start() {
     showNetworkFormat = document.getElementById('showNetworkFormat').value;
     showTrainingData = document.getElementById('showTrainingData').value;
     trainingMethod = document.getElementById('trainingMethod').value;
+    const resEl = document.getElementById('xgbResolution');
+    if (resEl)
+        xgbResolution = parseFloat(resEl.value);
     networkChange(); // sets up network format, creates trials, etc.
     updateSettingsVisibility();
 }
@@ -413,7 +416,7 @@ function update() {
                 case "none":
                     drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, []);
                     break;
-                case "trainvsoutput":
+                case "testvsoutput":
                     drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
                         { fn: testLine, color: '#4CAF50', lineWidth: 1.5 },
                         { fn: predictLine, color: '#2196F3', lineWidth: 2 },
@@ -666,87 +669,161 @@ function createInputs(numOfInputs, high, low, spacing) {
 }
 function test(inputs) {
     switch (networkFormat) {
-        case "Val1in1Out":
+        case "Val1in1Out": {
+            const x = inputs[0];
             switch (testFunctionVal1in1out) {
                 case "sine":
-                    return [Math.sin(inputs[0] * Math.PI)];
+                    return [Math.sin(x * Math.PI)];
                 case "square":
-                    return [Math.sin(inputs[0] * Math.PI * 2) > 0 ? 1 : -1];
+                    return [Math.sin(x * Math.PI * 2) > 0 ? 1 : -1];
                 case "sawtooth":
-                    return [((inputs[0] + 1) % 0.5) * 4 - 1];
+                    return [((x + 1) % 0.5) * 4 - 1];
+                case "triangle":
+                    return [1 - 4 * Math.abs(Math.round(x * 0.5) - x * 0.5)];
                 case "abs":
-                    return [Math.abs(inputs[0]) * 2 - 1];
+                    return [Math.abs(x) * 2 - 1];
                 case "cubic":
-                    return [Math.max(-1, Math.min(1, inputs[0] ** 3 * 4))];
+                    return [Math.max(-1, Math.min(1, x ** 3 * 4))];
+                case "polynomial":
+                    return [Math.max(-1, Math.min(1, 2 * x * x * x - 3 * x * x + x + 0.5))];
                 case "step":
-                    return [inputs[0] < -0.5 ? -1 : inputs[0] < 0 ? -0.3 : inputs[0] < 0.5 ? 0.3 : 1];
+                    return [x < -0.5 ? -1 : x < 0 ? -0.3 : x < 0.5 ? 0.3 : 1];
+                case "gaussian":
+                    return [Math.exp(-x * x * 5) * 2 - 1];
+                case "tanh":
+                    return [Math.tanh(x * 3)];
+                case "sinc":
+                    return [x === 0 ? 1 : Math.sin(x * 6) / (x * 6)];
+                case "noise":
+                    return [Math.sin(x * Math.PI) * 0.7 + Math.sin(x * 7) * 0.3];
             }
             break;
-        case "Val2in1out":
+        }
+        case "Val2in1out": {
+            const x = inputs[0], y = inputs[1];
             switch (testFunctionVal2in1out) {
                 case "wave":
-                    return [inputs[0] > Math.sin(inputs[1] * 2 * Math.PI) ? 1 : -1];
+                    return [x > Math.sin(y * 2 * Math.PI) ? 1 : -1];
                 case "radial":
-                    return [Math.max(Math.min(1 - 2 * (inputs[0] ** 2 + inputs[1] ** 2), 1), -1)];
+                    return [Math.max(Math.min(1 - 2 * (x ** 2 + y ** 2), 1), -1)];
                 case "xy":
-                    return [inputs[0] * inputs[1]];
+                    return [x * y];
                 case "checkerboard":
-                    return [Math.floor(inputs[0] * 4) % 2 === Math.floor(inputs[1] * 4) % 2 ? 1 : -1];
-                case "spiral":
-                    let angle = Math.atan2(inputs[1], inputs[0]);
-                    let radius = Math.sqrt(inputs[0] ** 2 + inputs[1] ** 2);
-                    return [Math.sin(angle * 3 + radius * 5) > 0 ? 1 : -1];
+                    return [Math.floor(x * 4) % 2 === Math.floor(y * 4) % 2 ? 1 : -1];
+                case "spiral": {
+                    let a = Math.atan2(y, x);
+                    let r = Math.sqrt(x ** 2 + y ** 2);
+                    return [Math.sin(a * 3 + r * 5) > 0 ? 1 : -1];
+                }
                 case "diagonal":
-                    return [inputs[0] + inputs[1] > 0 ? 1 : -1];
+                    return [x + y > 0 ? 1 : -1];
+                case "gaussian2d":
+                    return [Math.exp(-(x * x + y * y) * 3) * 2 - 1];
+                case "saddle":
+                    return [Math.max(-1, Math.min(1, x * x - y * y))];
+                case "ripple": {
+                    let d = Math.sqrt(x * x + y * y);
+                    return [Math.sin(d * 8) * Math.exp(-d * 2)];
+                }
+                case "peaks":
+                    return [Math.max(-1, Math.min(1, Math.exp(-((x - 0.5) ** 2 + y ** 2) * 5) -
+                            Math.exp(-((x + 0.5) ** 2 + y ** 2) * 5)))];
+                case "step2d":
+                    return [x > 0.3 ? 1 : x < -0.3 ? -1 : y > 0 ? 0.5 : -0.5];
+                case "swiss":
+                    return [Math.sin(x * 3 + y * 2) * Math.cos(x * 2 - y * 3) > 0 ? 1 : -1];
             }
             break;
-        case "Cat2in2out":
+        }
+        case "Cat2in2out": {
+            const x = inputs[0], y = inputs[1];
             switch (testFunctionCat2in2out) {
                 case "circle":
-                    return inputs[0] ** 2 + inputs[1] ** 2 < 0.5 ? [1, 0] : [0, 1];
+                    return x ** 2 + y ** 2 < 0.5 ? [1, 0] : [0, 1];
                 case "square":
-                    return Math.abs(inputs[0]) < 0.5 && Math.abs(inputs[1]) < 0.5 ? [1, 0] : [0, 1];
+                    return Math.abs(x) < 0.5 && Math.abs(y) < 0.5 ? [1, 0] : [0, 1];
                 case "quadrants":
-                    return inputs[0] * inputs[1] > 0 ? [1, 0] : [0, 1];
-                case "donut":
-                    let r = inputs[0] ** 2 + inputs[1] ** 2;
+                    return x * y > 0 ? [1, 0] : [0, 1];
+                case "donut": {
+                    let r = x ** 2 + y ** 2;
                     return r > 0.25 && r < 0.75 ? [1, 0] : [0, 1];
+                }
                 case "xor":
-                    return (inputs[0] > 0) !== (inputs[1] > 0) ? [1, 0] : [0, 1];
+                    return (x > 0) !== (y > 0) ? [1, 0] : [0, 1];
                 case "diagonal":
-                    return inputs[0] > inputs[1] ? [1, 0] : [0, 1];
+                    return x > y ? [1, 0] : [0, 1];
+                case "stripes":
+                    return Math.sin(x * 6) > 0 ? [1, 0] : [0, 1];
+                case "checkerboard":
+                    return (Math.floor((x + 1) * 3) + Math.floor((y + 1) * 3)) % 2 === 0 ? [1, 0] : [0, 1];
+                case "spiral": {
+                    let a = Math.atan2(y, x);
+                    let r = Math.sqrt(x ** 2 + y ** 2);
+                    return Math.sin(a * 2 + r * 6) > 0 ? [1, 0] : [0, 1];
+                }
+                case "moons":
+                    return (x ** 2 + (y - 0.3) ** 2 < 0.6 && x ** 2 + (y + 0.3) ** 2 > 0.3) ? [1, 0] : [0, 1];
+                case "diamond":
+                    return Math.abs(x) + Math.abs(y) < 0.7 ? [1, 0] : [0, 1];
+                case "cross":
+                    return (Math.abs(x) < 0.2 || Math.abs(y) < 0.2) ? [1, 0] : [0, 1];
             }
             break;
+        }
         case "CatNout": {
+            const x = inputs[0], y = inputs[1];
             const n = numCategories;
             const oneHot = (idx) => {
                 const arr = new Array(n).fill(0);
-                arr[idx] = 1;
+                arr[Math.min(Math.max(idx, 0), n - 1)] = 1;
                 return arr;
             };
             switch (testFunctionCatNout) {
                 case "sectors": {
-                    let a = Math.atan2(inputs[1], inputs[0]); // -PI to PI
-                    let sector = Math.floor(((a + Math.PI) / (2 * Math.PI)) * n);
-                    return oneHot(Math.min(sector, n - 1));
+                    let a = Math.atan2(y, x);
+                    return oneHot(Math.floor(((a + Math.PI) / (2 * Math.PI)) * n));
                 }
                 case "rings": {
-                    let dist = Math.sqrt(inputs[0] ** 2 + inputs[1] ** 2);
-                    let ring = Math.floor(dist * n / 1.5);
-                    return oneHot(Math.min(ring, n - 1));
+                    let dist = Math.sqrt(x ** 2 + y ** 2);
+                    return oneHot(Math.floor(dist * n / 1.5));
                 }
                 case "grid": {
-                    let gx = Math.floor((inputs[0] + 1) / 2 * Math.ceil(Math.sqrt(n)));
-                    let gy = Math.floor((inputs[1] + 1) / 2 * Math.ceil(Math.sqrt(n)));
-                    let idx = (gy * Math.ceil(Math.sqrt(n)) + gx) % n;
-                    return oneHot(idx);
+                    let s = Math.ceil(Math.sqrt(n));
+                    let gx = Math.floor((x + 1) / 2 * s);
+                    let gy = Math.floor((y + 1) / 2 * s);
+                    return oneHot((gy * s + gx) % n);
                 }
                 case "spiral": {
-                    let sa = Math.atan2(inputs[1], inputs[0]);
-                    let sr = Math.sqrt(inputs[0] ** 2 + inputs[1] ** 2);
-                    let idx = Math.floor(((sa + Math.PI + sr * 4) % (2 * Math.PI)) / (2 * Math.PI) * n);
-                    return oneHot(Math.min(Math.max(idx, 0), n - 1));
+                    let a = Math.atan2(y, x);
+                    let r = Math.sqrt(x ** 2 + y ** 2);
+                    return oneHot(Math.floor(((a + Math.PI + r * 4) % (2 * Math.PI)) / (2 * Math.PI) * n));
                 }
+                case "stripes":
+                    return oneHot(Math.floor(((x + 1) / 2) * n));
+                case "checkerboard": {
+                    let s = Math.ceil(Math.sqrt(n));
+                    let cx = Math.floor((x + 1) / 2 * s);
+                    let cy = Math.floor((y + 1) / 2 * s);
+                    return oneHot((cx + cy) % n);
+                }
+                case "voronoi": {
+                    // Fixed random-ish seed points per class
+                    const centers = Array.from({ length: n }, (_, i) => ({
+                        x: Math.cos(i * 2.39996) * 0.6,
+                        y: Math.sin(i * 2.39996) * 0.6
+                    }));
+                    let minDist = Infinity, minIdx = 0;
+                    for (let i = 0; i < n; i++) {
+                        let d = (x - centers[i].x) ** 2 + (y - centers[i].y) ** 2;
+                        if (d < minDist) {
+                            minDist = d;
+                            minIdx = i;
+                        }
+                    }
+                    return oneHot(minIdx);
+                }
+                case "waves":
+                    return oneHot(Math.floor(((Math.sin(x * 4) + Math.sin(y * 4) + 2) / 4) * n));
             }
             break;
         }
@@ -783,9 +860,15 @@ function networkChange() {
                 <option value="sine">Sine</option>
                 <option value="square">Square Wave</option>
                 <option value="sawtooth">Sawtooth</option>
+                <option value="triangle">Triangle</option>
                 <option value="abs">Abs</option>
                 <option value="cubic">Cubic</option>
+                <option value="polynomial">Polynomial</option>
                 <option value="step">Step</option>
+                <option value="gaussian">Gaussian</option>
+                <option value="tanh">Tanh</option>
+                <option value="sinc">Sinc</option>
+                <option value="noise">Noisy Sine</option>
             `;
             testFunctionDropdown.value = testFunctionVal1in1out;
             break;
@@ -803,6 +886,12 @@ function networkChange() {
                 <option value="checkerboard">Checkerboard</option>
                 <option value="spiral">Spiral</option>
                 <option value="diagonal">Diagonal</option>
+                <option value="gaussian2d">Gaussian</option>
+                <option value="saddle">Saddle</option>
+                <option value="ripple">Ripple</option>
+                <option value="peaks">Peaks</option>
+                <option value="step2d">Step 2D</option>
+                <option value="swiss">Swiss Roll</option>
             `;
             testFunctionDropdown.value = testFunctionVal2in1out;
             break;
@@ -816,10 +905,16 @@ function networkChange() {
             testFunctionDropdown.innerHTML = `
                 <option value="circle">Circle</option>
                 <option value="square">Square</option>
-                <option value="quadrants">Quadrants (XY Sign)</option>
+                <option value="quadrants">Quadrants</option>
                 <option value="donut">Donut</option>
                 <option value="xor">XOR</option>
                 <option value="diagonal">Diagonal</option>
+                <option value="stripes">Stripes</option>
+                <option value="checkerboard">Checkerboard</option>
+                <option value="spiral">Spiral</option>
+                <option value="moons">Moons</option>
+                <option value="diamond">Diamond</option>
+                <option value="cross">Cross</option>
             `;
             testFunctionDropdown.value = testFunctionCat2in2out;
             break;
@@ -834,6 +929,10 @@ function networkChange() {
                 <option value="rings">Rings</option>
                 <option value="grid">Grid</option>
                 <option value="spiral">Spiral</option>
+                <option value="stripes">Stripes</option>
+                <option value="checkerboard">Checkerboard</option>
+                <option value="voronoi">Voronoi</option>
+                <option value="waves">Waves</option>
             `;
             testFunctionDropdown.value = testFunctionCatNout;
             break;
@@ -843,18 +942,18 @@ function networkChange() {
         networkFormat === 'CatNout' ? '' : 'none';
     document.getElementById('input2Group').style.display =
         inputSize >= 2 ? '' : 'none';
-    // Update data format dropdown for 1in1out (has extra "Train vs Output" option)
+    // Update data format dropdown for 1in1out (has extra "Test vs Output" option)
     const dataFormatDropdown = document.getElementById('showDataFormat');
     if (networkFormat === 'Val1in1Out') {
         dataFormatDropdown.innerHTML = `
-            <option value="trainvsoutput">Train vs Output</option>
+            <option value="testvsoutput">Test vs Output</option>
             <option value="output">Output</option>
             <option value="test">Test</option>
             <option value="error">Error</option>
             <option value="none">None</option>
         `;
-        showDataFormat = 'trainvsoutput';
-        dataFormatDropdown.value = 'trainvsoutput';
+        showDataFormat = 'testvsoutput';
+        dataFormatDropdown.value = 'testvsoutput';
     }
     else {
         dataFormatDropdown.innerHTML = `
@@ -863,7 +962,7 @@ function networkChange() {
             <option value="error">Error</option>
             <option value="test">Test</option>
         `;
-        if (showDataFormat === 'trainvsoutput')
+        if (showDataFormat === 'testvsoutput')
             showDataFormat = 'output';
         dataFormatDropdown.value = showDataFormat;
     }
