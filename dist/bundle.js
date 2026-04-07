@@ -1839,18 +1839,32 @@
             ]);
             break;
         }
-        if (showTrainingData === "output") {
-          drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
-            { fn: predictLine, color: "#2196F3", lineWidth: 1.5 }
-          ], 200, false);
-        } else if (showTrainingData === "test") {
-          drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
-            { fn: testLine, color: "#4CAF50", lineWidth: 1.5 }
-          ], 200, false);
-        } else if (showTrainingData === "error") {
-          drawLineGraph(ctx, graphLeft, graphTop, graphWidth, graphHeight, axis1low, axis1high, -1.2, 1.2, [
-            { fn: errorLine, color: "#E53935", lineWidth: 1.5 }
-          ], 200, false);
+        if (showTrainingData !== "none" && nnl instanceof NeuralNetworkList) {
+          const toSX = (v) => graphLeft + (v - axis1low) / (axis1high - axis1low) * graphWidth;
+          const toSY = (v) => graphTop + graphHeight - (v - -1.2) / (1.2 - -1.2) * graphHeight;
+          let dotFn = null;
+          let dotColor = "#000";
+          if (showTrainingData === "output") {
+            dotFn = (inp) => predict(inp)[0];
+            dotColor = "#2196F3";
+          } else if (showTrainingData === "test") {
+            dotFn = (inp) => test(inp)[0];
+            dotColor = "#4CAF50";
+          } else if (showTrainingData === "error") {
+            dotFn = (inp) => predict(inp)[0] - test(inp)[0];
+            dotColor = "#E53935";
+          }
+          if (dotFn) {
+            const fn = dotFn;
+            ctx.fillStyle = dotColor;
+            nnl.trialInputsList.forEach((inp) => {
+              const sx = toSX(inp[0]);
+              const sy = toSY(Math.max(-1.2, Math.min(1.2, fn(inp))));
+              ctx.beginPath();
+              ctx.arc(sx, sy, 3, 0, 2 * Math.PI);
+              ctx.fill();
+            });
+          }
         }
         const markerX = graphLeft + (input1 - axis1low) / (axis1high - axis1low) * graphWidth;
         ctx.strokeStyle = "rgba(0,0,0,0.4)";
@@ -1977,40 +1991,71 @@
         }
       }
     }
-    if (nnl instanceof NeuralNetworkList) {
+    if (nnl instanceof NeuralNetworkList && showTrainingData !== "none" && inputSize >= 2) {
+      const dpLeft = 0, dpTop = hch, dpWidth = hcw - padding * canvas.width, dpHeight = hch;
       if (networkFormat === "Val2in1out") {
         switch (showTrainingData) {
           case "error":
-            nnl.display2Input1OutputDataPoints((inputs) => [predict(inputs)[0] - test(inputs)[0]], ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange);
+            nnl.display2Input1OutputDataPoints((inputs) => [predict(inputs)[0] - test(inputs)[0]], ctx, dpLeft, dpTop, dpWidth, dpHeight, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange);
             break;
           case "output":
-            nnl.display2Input1OutputDataPoints((inputs) => [predict(inputs)[0]], ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange);
+            nnl.display2Input1OutputDataPoints((inputs) => [predict(inputs)[0]], ctx, dpLeft, dpTop, dpWidth, dpHeight, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange);
             break;
           case "test":
-            nnl.display2Input1OutputDataPoints(test, ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange);
+            nnl.display2Input1OutputDataPoints(test, ctx, dpLeft, dpTop, dpWidth, dpHeight, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange);
             break;
         }
       } else if (networkFormat === "Cat2in2out") {
         switch (showTrainingData) {
           case "error":
-            const errorColor1 = { r: 255, g: 255, b: 255 };
-            const errorColor2 = { r: 255, g: 0, b: 0 };
             nnl.display2Input2OutputDataPoints((inputs) => {
-              let nnOutput = predict(inputs);
-              let testOutput = test(inputs);
-              let error0 = Math.abs(nnOutput[0] - testOutput[0]);
-              let error1 = Math.abs(nnOutput[1] - testOutput[1]);
-              let totalError = (error0 + error1) / 2;
-              return [totalError, 0];
-            }, ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, errorColor1, errorColor2);
+              let p = predict(inputs), t = test(inputs);
+              return [(Math.abs(p[0] - t[0]) + Math.abs(p[1] - t[1])) / 2, 0];
+            }, ctx, dpLeft, dpTop, dpWidth, dpHeight, axis1low, axis2low, axis1high, axis2high, { r: 255, g: 255, b: 255 }, { r: 255, g: 0, b: 0 });
             break;
           case "output":
-            nnl.display2Input2OutputDataPoints((inputs) => predict(inputs), ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, color1, color2);
+            nnl.display2Input2OutputDataPoints((inputs) => predict(inputs), ctx, dpLeft, dpTop, dpWidth, dpHeight, axis1low, axis2low, axis1high, axis2high, color1, color2);
             break;
           case "test":
-            nnl.display2Input1OutputDataPoints(test, ctx, 0, hch, hcw - padding * canvas.width, hch, axis1low, axis2low, axis1high, axis2high, ouputMiddle, outputRange);
+            nnl.display2Input2OutputDataPoints(test, ctx, dpLeft, dpTop, dpWidth, dpHeight, axis1low, axis2low, axis1high, axis2high, color1, color2);
             break;
         }
+      } else if (networkFormat === "CatNout") {
+        const catColors = getCategoryColors(numCategories);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(dpLeft, dpTop, dpWidth, dpHeight);
+        ctx.clip();
+        let dotFn = test;
+        if (showTrainingData === "output")
+          dotFn = (inputs) => predict(inputs);
+        else if (showTrainingData === "error")
+          dotFn = (inputs) => {
+            let p = predict(inputs), t = test(inputs);
+            let sum = 0;
+            for (let k = 0; k < p.length; k++)
+              sum += Math.abs(p[k] - t[k]);
+            return [sum / p.length];
+          };
+        nnl.trialInputsList.forEach((input) => {
+          const sx = dpLeft + (input[0] - axis1low) / (axis1high - axis1low) * dpWidth;
+          const sy = dpTop + (input[1] - axis2low) / (axis2high - axis2low) * dpHeight;
+          const out = dotFn(input);
+          let maxIdx = 0;
+          for (let k = 1; k < out.length; k++)
+            if (out[k] > out[maxIdx])
+              maxIdx = k;
+          const col = catColors[maxIdx % catColors.length];
+          ctx.fillStyle = "#000";
+          ctx.beginPath();
+          ctx.arc(sx, sy, 4, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.fillStyle = `rgb(${col.r},${col.g},${col.b})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 3, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+        ctx.restore();
       }
     }
   }
